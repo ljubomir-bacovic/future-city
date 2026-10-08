@@ -166,6 +166,33 @@ public class ContentLoaderTests
     }
 
     [Fact]
+    public void Economy_rules_are_checked()
+    {
+        var files = Files();
+        files["economy.json"] = files["economy.json"]
+            .Replace("\"regalia\": [\"silver\"]", "\"regalia\": [\"gold\"]")
+            .Replace("\"default\": 10, \"max\": 50", "\"default\": 60, \"max\": 50")
+            .Replace("\"intervalTicks\": 50", "\"intervalTicks\": 0");
+        var errors = LoadFails(files).Errors;
+        Assert.Contains(errors, e => e.Contains("treasury.regalia refers to unknown good 'gold'"));
+        Assert.Contains(errors, e => e.Contains("taxes.tribute.default is 60"));
+        Assert.Contains(errors, e => e.Contains("market.intervalTicks is 0"));
+    }
+
+    [Fact]
+    public void Workers_need_work_and_conditions_may_use_economy_facts()
+    {
+        var files = Files();
+        files["buildings.json"] = files["buildings.json"].Replace("\"market\": true", "\"storage\": true");
+        Assert.Contains(LoadFails(files).Errors, e => e.Contains("'marketplace' has workers but no work"));
+
+        var content = ContentLoader.Load(Files());
+        foreach (var fact in new[] { "coins", "trades", "happiness", "class.craftsmen", "class.nobility" })
+            Assert.NotNull(content.ResolveFact(fact));
+        Assert.Null(content.ResolveFact("class.pirates"));
+    }
+
+    [Fact]
     public void Shipped_content_resolves_references()
     {
         var content = ContentLoader.Load(GameContent.ReadAll());
