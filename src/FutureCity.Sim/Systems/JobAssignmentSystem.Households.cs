@@ -501,7 +501,7 @@ public sealed partial class JobAssignmentSystem
         Entity worker = default;
         foreach (var unit in people)
         {
-            if (!Bands.IsAdult(world, unit.GetComponent<Citizen>())) continue;
+            if (!Bands.IsAdult(world, unit.GetComponent<Citizen>()) || unit.HasComponent<Soldier>()) continue; // soldiers are on duty
             var order = unit.GetComponent<Order>();
             if (order.Kind == OrderKind.Idle) return unit;
             if (worker.IsNull && order.Auto && order.Public == publicWork && order.Kind is OrderKind.Gather or OrderKind.Hunt

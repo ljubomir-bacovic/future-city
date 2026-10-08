@@ -23,6 +23,9 @@ public static class InputActions
     public const string QuickLoad = "quick_load";
     public const string ToggleResearch = "toggle_research";
     public const string ToggleEconomy = "toggle_economy";
+    public const string ToggleMilitary = "toggle_military";
+    public const string ToggleDiplomacy = "toggle_diplomacy";
+    public const string SwitchPlayer = "switch_player";
 
     /// <summary>Adds all actions to the InputMap (safe to call more than once).</summary>
     public static void Register()
@@ -42,6 +45,9 @@ public static class InputActions
         Add(QuickLoad, Key.F9);
         Add(ToggleResearch, Key.R);
         Add(ToggleEconomy, Key.E);
+        Add(ToggleMilitary, Key.M);
+        Add(ToggleDiplomacy, Key.N);
+        Add(SwitchPlayer, Key.F2);
     }
 
     private static void Add(string action, params Key[] keys)

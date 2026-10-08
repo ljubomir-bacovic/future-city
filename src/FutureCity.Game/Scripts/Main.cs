@@ -17,7 +17,10 @@ namespace FutureCity.Game;
 /// --select-all (select the band at start), --autoplay[=forage] (a stand-in computer player runs the band: by default
 /// the settler that builds and farms), --skip=N (simulate N ticks before showing the game; useful with --autoplay for
 /// screenshots), --research (open the discoveries panel), --economy (open the economy panel), --place=ID (start
-/// placing a building), --select-building=ID.
+/// placing a building), --select-building=ID, --civs=N (civilizations on the map; F2 switches between them),
+/// --war-at=S (with --autoplay and two or more civilizations: the last one raids player 1 at game second S),
+/// --military, --diplomacy (open those panels), --player=N (start controlling civilization N), --look=X,Y (centre the
+/// camera on a tile).
 /// </summary>
 public partial class Main : Node2D
 {
@@ -31,6 +34,8 @@ public partial class Main : Node2D
     private BuildMenu _buildMenu = null!;
     private ResearchPanel _research = null!;
     private EconomyPanel _economy = null!;
+    private MilitaryPanel _military = null!;
+    private DiplomacyPanel _diplomacy = null!;
     private RtsCamera _camera = null!;
     private Hud _hud = null!;
     private LaunchOptions _options = null!;
@@ -56,6 +61,8 @@ public partial class Main : Node2D
         _hud = new Hud { Name = "Hud" };
         _research = new ResearchPanel { Name = "Research" };
         _economy = new EconomyPanel { Name = "Economy" };
+        _military = new MilitaryPanel { Name = "Military" };
+        _diplomacy = new DiplomacyPanel { Name = "Diplomacy" };
         AddChild(_driver);
         AddChild(_mapView);
         AddChild(_entityView);
@@ -65,36 +72,47 @@ public partial class Main : Node2D
         AddChild(_hud);
         AddChild(_research);
         AddChild(_economy);
+        AddChild(_military);
+        AddChild(_diplomacy);
         _camera.MakeCurrent();
 
         _driver.SimulationChanged += OnSimulationChanged;
         _driver.Ticked += OnTicked;
+        _driver.PlayerChanged += FocusOnPlayer;
         _entityView.Initialize(_driver, _mapView, _selection);
         _selection.Initialize(_driver, _entityView, _mapView);
         _research.Initialize(_driver);
         _economy.Initialize(_driver);
-        _hud.Initialize(_driver, _selection, _research, _economy);
+        _military.Initialize(_driver, _selection);
+        _diplomacy.Initialize(_driver);
+        _hud.Initialize(_driver, _selection, _research, _economy, _military, _diplomacy);
         _buildMenu.Initialize(_driver, _mapView, _entityView);
         _buildMenu.Message += _hud.ShowMessage;
 
-        System.Action<Simulation>? bot = _options.Autoplay switch
-        {
-            "forage" => new ForagingBot(Players.Human).Act,
-            null => null,
-            _ => new SettlerBot(Players.Human).Act,
-        };
-        if (bot != null) _driver.BeforeStep = bot;
         var sim = Simulation.NewGame(_content, new GameSetup
         {
             Seed = _options.Seed ?? (ulong)System.Random.Shared.NextInt64(),
             MapSize = _options.MapSize ?? _content.Rules.DefaultMapSize,
+            Civilizations = Math.Clamp(_options.Civilizations, 1, GameSetup.MaxCivilizations),
         });
+        System.Action<Simulation>? bot = null;
+        for (int player = Players.Human; _options.Autoplay != null && player <= sim.World.Setup.Civilizations; player++)
+        {
+            bool raider = _options.WarAt is { } at && player > Players.Human && player == sim.World.Setup.Civilizations;
+            System.Action<Simulation> one = raider ? new WarBot(player, Players.Human, SimClock.FromSeconds(_options.WarAt!.Value)).Act
+                : _options.Autoplay == "forage" ? new ForagingBot(player).Act : new SettlerBot(player).Act;
+            bot += one;
+        }
+        if (bot != null) _driver.BeforeStep = bot;
         for (int i = 0; i < _options.SkipTicks; i++)
         {
             bot?.Invoke(sim);
             sim.Step();
         }
         _driver.Start(sim);
+        for (int i = Players.Human; i < _options.Player; i++) _driver.SwitchPlayer();
+        if (_options.Military) _military.Toggle();
+        if (_options.Diplomacy) _diplomacy.Toggle();
         if (_options.SelectAll)
             _selection.SelectAllOwn();
         if (_options.Research)
@@ -124,8 +142,11 @@ public partial class Main : Node2D
         else if (@event.IsActionPressed(InputActions.SpeedDown)) _driver.SetSpeed(_driver.Speed - 1);
         else if (@event.IsActionPressed(InputActions.QuickSave)) Save(QuickSavePath, "Game saved");
         else if (@event.IsActionPressed(InputActions.QuickLoad)) Load(QuickSavePath);
-        else if (@event.IsActionPressed(InputActions.ToggleResearch)) _research.Toggle();
-        else if (@event.IsActionPressed(InputActions.ToggleEconomy)) _economy.Toggle();
+        else if (@event.IsActionPressed(InputActions.ToggleResearch)) { _military.Close(); _research.Toggle(); }
+        else if (@event.IsActionPressed(InputActions.ToggleEconomy)) { _diplomacy.Close(); _economy.Toggle(); }
+        else if (@event.IsActionPressed(InputActions.ToggleMilitary)) { if (_research.IsOpen) _research.Toggle(); _military.Toggle(); }
+        else if (@event.IsActionPressed(InputActions.ToggleDiplomacy)) { if (_economy.IsOpen) _economy.Toggle(); _diplomacy.Toggle(); }
+        else if (@event.IsActionPressed(InputActions.SwitchPlayer)) _driver.SwitchPlayer();
         else return;
         GetViewport().SetInputAsHandled();
     }
@@ -135,10 +156,19 @@ public partial class Main : Node2D
         var world = _driver.Simulation!.World;
         _mapView.Build(world);
         _camera.SetBounds(_mapView.Bounds);
-        if (Bands.TryGetCamp(world, Players.Human, out var camp))
-            _camera.Position = _entityView.WorldPosition(camp);
+        FocusOnPlayer();
+        if (_options.Look?.Split(',') is [var lx, var ly])
+            _camera.Position = _mapView.TileToLocal(new Vector2(float.Parse(lx, CultureInfo.InvariantCulture), float.Parse(ly, CultureInfo.InvariantCulture)));
         if (_options.Zoom is { } zoom)
             _camera.Zoom = new Vector2(zoom, zoom);
+    }
+
+    // Looks at the controlled civilization's camp.
+    private void FocusOnPlayer()
+    {
+        var world = _driver.Simulation!.World;
+        if (Bands.TryGetCamp(world, _driver.Player, out var camp))
+            _camera.Position = _entityView.WorldPosition(camp);
     }
 
     private void OnTicked()
@@ -191,7 +221,8 @@ public partial class Main : Node2D
     }
 
     private sealed record LaunchOptions(ulong? Seed, string? MapSize, float? Zoom, string? ScreenshotPath, int ScreenshotFrames,
-        bool SelectAll, string? Autoplay, int SkipTicks, bool Research = false, string? Place = null, string? SelectBuilding = null, bool Economy = false)
+        bool SelectAll, string? Autoplay, int SkipTicks, bool Research = false, string? Place = null, string? SelectBuilding = null, bool Economy = false,
+        int Civilizations = 1, int? WarAt = null, bool Military = false, bool Diplomacy = false, int Player = 1, string? Look = null)
     {
         public static LaunchOptions Parse(string[] args)
         {
@@ -214,6 +245,12 @@ public partial class Main : Node2D
                     "--place" => options with { Place = value },
                     "--select-building" => options with { SelectBuilding = value },
                     "--skip" => options with { SkipTicks = int.Parse(value, CultureInfo.InvariantCulture) },
+                    "--civs" => options with { Civilizations = int.Parse(value, CultureInfo.InvariantCulture) },
+                    "--war-at" => options with { WarAt = int.Parse(value, CultureInfo.InvariantCulture) },
+                    "--military" => options with { Military = true },
+                    "--diplomacy" => options with { Diplomacy = true },
+                    "--player" => options with { Player = int.Parse(value, CultureInfo.InvariantCulture) },
+                    "--look" => options with { Look = value },
                     _ => options,
                 };
             }

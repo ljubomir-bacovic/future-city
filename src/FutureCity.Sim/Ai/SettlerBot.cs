@@ -82,10 +82,13 @@ public sealed class SettlerBot
         }
         if (own.Count <= threats.Count)
         {
+            // Spears for as many as there are tools in store, clubs for the rest.
             var facts = Civics.FactsOf(world, Player);
-            string unit = Military.CanRecruit(world, Player, world.Content.UnitIndex("spearman"), Service.Levy, facts) == Recruitment.Ok
-                          && Stores.Total(world, Player, world.Content.ToolGood) > 0 ? "spearman" : "clubman";
-            sim.Enqueue(new Recruit(unit, threats.Count + 1 - own.Count, Service.Levy) { Player = Player });
+            int need = threats.Count + 1 - own.Count;
+            int spears = Military.CanRecruit(world, Player, world.Content.UnitIndex("spearman"), Service.Levy, facts) == Recruitment.Ok
+                ? Math.Min(need, Stores.Total(world, Player, world.Content.ToolGood)) : 0;
+            if (spears > 0) sim.Enqueue(new Recruit("spearman", spears, Service.Levy) { Player = Player });
+            if (need > spears) sim.Enqueue(new Recruit("clubman", need - spears, Service.Levy) { Player = Player });
         }
         var idle = own.Where(s => s.GetComponent<Soldier>().Equipped && s.GetComponent<Order>().Kind is OrderKind.Idle or OrderKind.Move)
             .Select(s => s.Id).ToArray();

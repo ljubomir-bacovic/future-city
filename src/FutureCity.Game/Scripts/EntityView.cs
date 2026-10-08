@@ -8,10 +8,13 @@ using Godot;
 namespace FutureCity.Game;
 
 /// <summary>
-/// Draws people, animals, plants, deposits, camps and buildings with the sprites in <see cref="Art"/>, falling back
-/// to simple shapes for content without art. Walkers are interpolated between ticks and step while they move, and
-/// everything is drawn back to front. Construction sites show a scaffold and a progress bar; fields show their crop;
-/// market stalls show the goods on sale and a worked mill turns its sails.
+/// Draws people, soldiers, animals, plants, deposits, camps, buildings and ruins with the sprites in <see cref="Art"/>,
+/// falling back to simple shapes for content without art. Walkers are interpolated between ticks and step while they
+/// move, and everything is drawn back to front. Construction sites show a scaffold and a progress bar; fields show
+/// their crop; market stalls show the goods on sale and a worked mill turns its sails. With several civilizations,
+/// people stand on a ring and buildings fly a flag in their owner's colour. Soldiers carry a pennant (a white flag
+/// when they flee) and a health bar once hurt; strikes show as a lunge, shots as flying arrows, and badly damaged
+/// buildings burn.
 /// </summary>
 public partial class EntityView : Node2D
 {
@@ -35,10 +38,20 @@ public partial class EntityView : Node2D
     private static readonly Color Scaffold = new("#c9a46a");
     private static readonly Color Thatch = new("#c8a35a");
 
+    private static readonly Color Arrow = new("#3a2a1a");
+    private static readonly Color Flame = new("#ff8a1e");
+    private static readonly Color FlameCore = new("#ffd84a");
+    private static readonly Color Smoke = new(0.35f, 0.35f, 0.35f, 0.5f);
+
+    // How long a strike or a shot stays visible, in seconds.
+    private const float StrikeSeconds = 0.35f;
+
     private SimulationDriver _driver = null!;
     private MapView _map = null!;
     private SelectionController _selection = null!;
     private readonly List<(float Depth, Action Draw)> _drawList = new();
+    // Recent hits: who struck whom, when (animation time) and whether it was a shot from a distance.
+    private readonly List<(int Attacker, int Target, float Time, bool Ranged)> _strikes = new();
 
     /// <summary>Connects the view to the game it draws.</summary>
     public void Initialize(SimulationDriver driver, MapView map, SelectionController selection)
@@ -47,6 +60,21 @@ public partial class EntityView : Node2D
         _map = map;
         _selection = selection;
         TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+        _driver.Ticked += CollectStrikes;
+        _driver.SimulationChanged += _strikes.Clear;
+    }
+
+    private void CollectStrikes()
+    {
+        var world = _driver.Simulation!.World;
+        _strikes.RemoveAll(s => Now - s.Time > StrikeSeconds);
+        foreach (var e in world.Events)
+        {
+            if (e.Kind != SimEventKind.Attacked || !world.TryGetEntity(e.Entity, out var attacker)) continue;
+            bool ranged = attacker.HasComponent<Building>()
+                          || (attacker.TryGetComponent<Soldier>(out var s) && world.Content.Units[s.Kind].Def.Range > 1);
+            _strikes.Add((e.Entity, e.Detail, Now, ranged));
+        }
     }
 
     // Animation time in seconds (presentation only; the simulation never sees it).
@@ -110,8 +138,20 @@ public partial class EntityView : Node2D
             var p = WorldPosition(e);
             _drawList.Add((p.Y, () => { if (!Art.DrawSprite(this, "camp", p)) DrawCamp(p); }));
         }
+        bool flags = world.Setup.Civilizations > 1;
         foreach (var e in world.Store.Query<Building, TilePosition>().Entities)
-            AddBuilding(world, e);
+            AddBuilding(world, e, flags);
+        foreach (var e in world.Store.Query<LootPile, TilePosition>().Entities)
+        {
+            var p = WorldPosition(e);
+            _drawList.Add((p.Y, () =>
+            {
+                if (Art.DrawSprite(this, "loot", p)) return;
+                Ellipse(p, 9, 4, Shadow);
+                Ellipse(p + new Vector2(0, -3), 7, 4, new Color("#d8c49a"));
+            }));
+        }
+        AddRallyFlag(world);
         foreach (var e in world.Store.Query<Plant, TilePosition>().Entities)
         {
             var p = WorldPosition(e);
@@ -164,6 +204,13 @@ public partial class EntityView : Node2D
         {
             var p = WorldPosition(e);
             var citizen = e.GetComponent<Citizen>();
+            var team = Art.PlayerColor(e.GetComponent<Owner>().Player);
+            if (e.TryGetComponent<Soldier>(out var soldier) && soldier.Equipped)
+            {
+                AddSoldier(world, e, p, citizen, soldier, team);
+                continue;
+            }
+            if (flags) _drawList.Add((p.Y - 0.01f, () => Ring(p, team)));
             bool adult = Bands.IsAdult(world, citizen);
             bool selected = _selection.IsSelected(e.Id);
             float health = (float)citizen.Health / rules.MaxHealth;
@@ -178,9 +225,98 @@ public partial class EntityView : Node2D
         _drawList.Sort((a, b) => a.Depth.CompareTo(b.Depth));
         foreach (var (_, draw) in _drawList)
             draw();
+        DrawShots(world);
     }
 
-    private void AddBuilding(World world, Entity e)
+    // A soldier: the unit's sprite (stepping while it walks, lunging when it strikes), its side's pennant or a white flag
+    // when fleeing, and a health bar once hurt.
+    private void AddSoldier(World world, Entity e, Vector2 feet, Citizen citizen, Soldier soldier, Color team)
+    {
+        var unit = world.Content.Units[soldier.Kind];
+        bool walking = IsWalking(e, out bool left);
+        string sprite = walking && StepFrame(e.Id) && Art.HasSprite(unit.Def.Id + "_walk") ? unit.Def.Id + "_walk" : unit.Def.Id;
+        Vector2 lunge = Vector2.Zero;
+        foreach (var (attacker, target, time, ranged) in _strikes)
+        {
+            if (attacker != e.Id || !world.TryGetEntity(target, out var foe)) continue;
+            var toward = WorldPosition(foe) - feet;
+            left = toward.X < 0;
+            float age = (Now - time) / StrikeSeconds;
+            if (!ranged && age < 1) lunge = toward.Normalized() * 4 * (1 - age);
+        }
+        float health = (float)citizen.Health / unit.Def.Health;
+        bool selected = _selection.IsSelected(e.Id);
+        bool fleeing = Military.IsRouted(world, soldier);
+        string? load = citizen.Carried > 0 ? world.Content.Goods[citizen.CarriedGood].Id : null;
+        float top = unit.Role == Sim.Content.UnitRole.Siege ? -30 : unit.Def.Id == "cavalry" ? -56 : -46;
+        _drawList.Add((feet.Y, () =>
+        {
+            var at = feet + lunge;
+            Ring(at, team);
+            if (selected)
+            {
+                DrawSetTransform(at, 0, new Vector2(1, 0.5f));
+                DrawArc(Vector2.Zero, 13, 0, Mathf.Tau, 24, SelectRing, 1.5f);
+                DrawSetTransform(Vector2.Zero);
+            }
+            if (!Art.DrawSprite(this, sprite, at, flip: left)) DrawPerson(at, 1f, false, health, null, null, false);
+            if (load != null) Art.DrawIcon(this, load, at + new Vector2(left ? -8 : 8, -14), 10);
+            var pole = at + new Vector2(left ? 5 : -5, top);
+            DrawLine(pole, pole + new Vector2(0, 10), new Color("#5a3e22"), 1);
+            DrawColoredPolygon([pole, pole + new Vector2(left ? -7 : 7, 2.5f), pole + new Vector2(0, 5)], fleeing ? Colors.White : team);
+            if (health < 0.999f || selected) HealthBar(at + new Vector2(0, top - 4), health);
+        }));
+    }
+
+    // A ring in the owner's colour under a person's feet.
+    private void Ring(Vector2 feet, Color team)
+    {
+        DrawSetTransform(feet, 0, new Vector2(1, 0.5f));
+        DrawArc(Vector2.Zero, 8, 0, Mathf.Tau, 20, team with { A = 0.85f }, 2f);
+        DrawSetTransform(Vector2.Zero);
+    }
+
+    private void HealthBar(Vector2 center, float health)
+    {
+        var bar = new Rect2(center + new Vector2(-8, 0), new Vector2(16, 2.5f));
+        DrawRect(bar, new Color(0, 0, 0, 0.6f));
+        DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * Mathf.Clamp(health, 0, 1), bar.Size.Y)), health > 0.4f ? HealthGood : HealthBad);
+    }
+
+    // The controlled player's rally point: a flag in their colour.
+    private void AddRallyFlag(World world)
+    {
+        if (!Sim.Emergence.Civics.TryGet(world, _driver.Player, out var civEntity)) return;
+        var civ = civEntity.GetComponent<Civilization>();
+        if (!civ.HasRally && !_selection.PlacingRally) return;
+        var p = _map.TileToLocal(new Vector2(civ.RallyX, civ.RallyY));
+        var team = Art.PlayerColor(_driver.Player);
+        if (!civ.HasRally) return;
+        _drawList.Add((p.Y, () =>
+        {
+            Ellipse(p, 4, 2, Shadow);
+            DrawLine(p, p + new Vector2(0, -22), new Color("#5a3e22"), 1.5f);
+            float wave = Mathf.Sin(Now * 4) * 1.5f;
+            DrawColoredPolygon([p + new Vector2(0, -22), p + new Vector2(11, -19 + wave), p + new Vector2(0, -15)], team);
+        }));
+    }
+
+    // Arrows in flight and nothing else: melee strikes show as lunges on the soldier.
+    private void DrawShots(World world)
+    {
+        foreach (var (attacker, target, time, ranged) in _strikes)
+        {
+            if (!ranged || !world.TryGetEntity(attacker, out var from) || !world.TryGetEntity(target, out var to)) continue;
+            float t = Mathf.Clamp((Now - time) / StrikeSeconds, 0, 1);
+            var a = WorldPosition(from) + new Vector2(0, from.HasComponent<Building>() ? -40 : -16);
+            var b = WorldPosition(to) + new Vector2(0, -10);
+            var head = a.Lerp(b, t) + new Vector2(0, -12 * 4 * t * (1 - t)); // a little arc
+            var tail = a.Lerp(b, Mathf.Max(0, t - 0.15f)) + new Vector2(0, -12 * 4 * Mathf.Max(0, t - 0.15f) * (1 - Mathf.Max(0, t - 0.15f)));
+            DrawLine(tail, head, Arrow, 1.2f);
+        }
+    }
+
+    private void AddBuilding(World world, Entity e, bool flags)
     {
         var type = world.Content.Buildings[e.GetComponent<Building>().Kind];
         var pos = e.GetComponent<TilePosition>();
@@ -201,6 +337,7 @@ public partial class EntityView : Node2D
         var corners = Footprint(pos.X, pos.Y, size);
         float depth = corners[2].Y;
         string id = type.Def.Id;
+        AddDamage(e, type.Def.HitPoints, corners, depth, flags ? Art.PlayerColor(e.GetComponent<Owner>().Player) : null);
         if (Buildings.IsComplete(e) && type.Def.Market)
         {
             // Stalls show the goods on sale, the most plentiful first.
@@ -230,6 +367,38 @@ public partial class EntityView : Node2D
             int percent = Buildings.ConstructionPercent(world, e);
             _drawList.Add((depth, () => DrawSite(pos.X, pos.Y, size, color, percent, selected)));
         }
+    }
+
+    // A damaged building shows its hit points; past half damage it burns. With several civilizations it flies its
+    // owner's flag.
+    private void AddDamage(Entity e, int hitPoints, Vector2[] corners, float depth, Color? owner)
+    {
+        int damage = e.GetComponent<Building>().Damage;
+        var top = corners[0];
+        int id = e.Id;
+        _drawList.Add((depth + 0.01f, () =>
+        {
+            if (owner is { } team)
+            {
+                var pole = top + new Vector2(0, -10);
+                DrawLine(top, pole, new Color("#5a3e22"), 1);
+                DrawColoredPolygon([pole, pole + new Vector2(8, 2.5f), pole + new Vector2(0, 5)], team);
+            }
+            if (damage <= 0) return;
+            if (damage * 2 >= hitPoints)
+            {
+                var center = (corners[0] + corners[2]) / 2;
+                for (int i = 0; i < 3; i++)
+                {
+                    float flicker = Mathf.Sin(Now * 9 + id + i * 2.1f);
+                    var at = center + new Vector2((i - 1) * 8, -6 - i % 2 * 5);
+                    DrawColoredPolygon([at + new Vector2(-4, 0), at + new Vector2(4, 0), at + new Vector2(0, -12 - 3 * flicker)], Flame);
+                    DrawColoredPolygon([at + new Vector2(-2, 0), at + new Vector2(2, 0), at + new Vector2(0, -6 - 2 * flicker)], FlameCore);
+                    DrawCircle(at + new Vector2(2 * flicker, -20 - 6 * ((Now + i) % 1)), 4 + 2 * ((Now + i) % 1), Smoke);
+                }
+            }
+            HealthBar(top + new Vector2(0, -16), 1f - (float)damage / hitPoints);
+        }));
     }
 
     private void AddSiteBar(World world, Entity e, TilePosition pos, int size)

@@ -6,7 +6,7 @@ namespace FutureCity.Game;
 /// <summary>
 /// The game's art: sprites for units, buildings and nature (<c>Art/sprites.svg</c>) and icons for goods and the HUD
 /// (<c>Art/icons.svg</c>). Both sheets are drawn at twice the in-game size so they stay sharp when zoomed in.
-/// Sprites are found by name: a building's or good's content id, or a fixed name such as "villager0". Content
+/// Sprites are found by name: a building's, unit's or good's content id, or a fixed name such as "villager0". Content
 /// without art yet (a new good or building) falls back to the placeholder shapes or text.
 /// </summary>
 public static class Art
@@ -51,14 +51,35 @@ public static class Art
         ["pine0"] = new(new Rect2(816, 408, 50, 82), new Vector2(25, 74)),
         ["pine1"] = new(new Rect2(866, 408, 44, 72), new Vector2(22, 64)),
         ["farm"] = new(new Rect2(0, 490, 136, 76), new Vector2(68, 36)), // build menu only: fields are drawn as they grow
+        // Soldiers, fortifications, the stable and ruins (Phase 4).
+        ["clubman"] = new(new Rect2(136, 490, 56, 100), new Vector2(24, 90)),
+        ["clubman_walk"] = new(new Rect2(192, 490, 56, 100), new Vector2(24, 90)),
+        ["spearman"] = new(new Rect2(248, 490, 56, 100), new Vector2(28, 90)),
+        ["spearman_walk"] = new(new Rect2(304, 490, 56, 100), new Vector2(28, 90)),
+        ["archer"] = new(new Rect2(360, 490, 56, 100), new Vector2(30, 90)),
+        ["archer_walk"] = new(new Rect2(416, 490, 56, 100), new Vector2(30, 90)),
+        ["cavalry"] = new(new Rect2(472, 490, 104, 120), new Vector2(48, 110)),
+        ["cavalry_walk"] = new(new Rect2(576, 490, 104, 120), new Vector2(48, 110)),
+        ["ram"] = new(new Rect2(680, 490, 194, 104), new Vector2(84, 68)),
+        ["palisade"] = new(new Rect2(874, 490, 124, 108), new Vector2(62, 62)),
+        ["gate"] = new(new Rect2(0, 610, 124, 116), new Vector2(62, 66)),
+        ["stone_wall"] = new(new Rect2(124, 610, 128, 104), new Vector2(64, 60)),
+        ["tower"] = new(new Rect2(252, 610, 124, 194), new Vector2(62, 152)),
+        ["stable"] = new(new Rect2(376, 610, 264, 204), new Vector2(128, 130)),
+        ["loot"] = new(new Rect2(640, 610, 64, 44), new Vector2(30, 32)),
     };
 
     private static readonly string[] IconNames =
     [
         "berries", "meat", "grain", "flour", "bread", "wood", "stone", "clay",
         "tools", "silver", "food", "people", "house", "coins", "prices", "happiness",
-        "spring", "summer", "autumn", "winter",
+        "spring", "summer", "autumn", "winter", "horses", "soldiers", "morale",
     ];
+
+    private static readonly Color[] PlayerColors = [new("#d8d2c4"), new("#3b6fb6"), new("#c0392b"), new("#d9a83a"), new("#8e5bb5")];
+
+    /// <summary>The colour that marks a player's people, flags and buildings (nature is grey).</summary>
+    public static Color PlayerColor(int player) => PlayerColors[Mathf.Clamp(player, 0, PlayerColors.Length - 1)];
 
     /// <summary>Where the mill's sails turn, relative to the mill's footprint centre (in-game pixels).</summary>
     public static readonly Vector2 MillHub = new Vector2(19.2f, -28.4f) * Scale;
