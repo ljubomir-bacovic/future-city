@@ -131,3 +131,6 @@ After each major crisis the game shows a short explainer of what happened, why, 
 - [x] Distribution: Steam.
 - [x] Business model: v1 is free; a premium offering comes later.
 - [x] Title: v1 ships as "Future City - Origins", since it ends in the Medieval era.
+- [x] Economic actors: families (huts) own goods and coins; gatherers, farmers and crafters work for their family; the chief's treasury owns public buildings and pays for public work.
+- [x] Before rival AI, settlements trade with visiting foreign merchants, who pay tariffs.
+- [x] Before coins, the chief is paid tribute in goods; afterwards taxes are paid in coins.
