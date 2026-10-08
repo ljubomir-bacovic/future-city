@@ -82,27 +82,31 @@ public sealed class CombatSystem : ISimSystem
                     order = new Order { Public = true };
                     return;
                 }
-                Engage(world, unit, target, dead);
+                Engage(world, unit, target, targets, dead);
                 return;
             case OrderKind.AttackMove:
                 if (order.Target != 0 && IsValidTarget(world, player, order.Target, type, dead, out var foe)
                     && Buildings.DistanceTo(world, foe, pos.X, pos.Y) <= type.Def.SightRadius * LeashFactor)
                 {
-                    Engage(world, unit, foe, dead);
+                    Engage(world, unit, foe, targets, dead);
                     return;
                 }
                 order.Target = 0;
                 if (look && TryAcquire(world, unit, type, type.Def.SightRadius, targets, dead, out foe))
                 {
                     order.Target = foe.Id;
-                    Engage(world, unit, foe, dead);
+                    Engage(world, unit, foe, targets, dead);
                     return;
                 }
                 if (pos.X == order.TargetX && pos.Y == order.TargetY && !mover.Moving)
                     order = new Order { Public = true };
                 else if (!mover.Moving || mover.GoalX != order.TargetX || mover.GoalY != order.TargetY)
-                    if (!Movement.SetGoal(world, ref mover, pos, order.TargetX, order.TargetY) && !mover.Moving)
+                {
+                    // Back on the march after a fight (or stopped short): head for its place again.
+                    if (!Movement.SetGoal(world, ref mover, pos, order.TargetX, order.TargetY) && !mover.Moving
+                        && !Breach(world, unit, type, targets, dead))
                         order = new Order { Public = true };
+                }
                 return;
             case OrderKind.Idle:
                 if (look && TryAcquire(world, unit, type, type.Def.SightRadius, targets, dead, out foe))
@@ -112,7 +116,7 @@ public sealed class CombatSystem : ISimSystem
                         Kind = OrderKind.Attack, Target = foe.Id,
                         TargetType = foe.HasComponent<Building>() ? TargetType.Building : TargetType.Unit, Auto = true, Public = true,
                     };
-                    Engage(world, unit, foe, dead);
+                    Engage(world, unit, foe, targets, dead);
                 }
                 return;
         }
@@ -126,7 +130,7 @@ public sealed class CombatSystem : ISimSystem
     }
 
     // The nearest enemy within `radius`: people (and caravans) before buildings, except for siege engines, which only
-    // attack buildings. Ties go to the lowest id.
+    // attack buildings. Walls are left alone unless they block the way (see Breach). Ties go to the lowest id.
     private static bool TryAcquire(World world, Entity unit, UnitType type, int radius, List<Entity> targets, HashSet<int> dead,
         out Entity best)
     {
@@ -139,6 +143,7 @@ public sealed class CombatSystem : ISimSystem
             if (dead.Contains(candidate.Id)) continue;
             bool building = candidate.HasComponent<Building>();
             if (type.Role == UnitRole.Siege && !building) continue;
+            if (building && Buildings.TypeOf(world, candidate).Def.Wall) continue; // walls are fought only when in the way
             int distance = Buildings.DistanceTo(world, candidate, pos.X, pos.Y);
             if (distance > radius || !Combat.IsEnemy(world, player, candidate)) continue;
             int score = (building && type.Role != UnitRole.Siege ? 1000 : 0) + distance;
@@ -150,7 +155,7 @@ public sealed class CombatSystem : ISimSystem
     }
 
     // Closes in on the target and strikes it when in reach and ready.
-    private static void Engage(World world, Entity unit, Entity target, HashSet<int> dead)
+    private static void Engage(World world, Entity unit, Entity target, List<Entity> targets, HashSet<int> dead)
     {
         ref var soldier = ref unit.GetComponent<Soldier>();
         var type = world.Content.Units[soldier.Kind];
@@ -173,7 +178,34 @@ public sealed class CombatSystem : ISimSystem
         int gx = Math.Clamp(pos.X, at.X, at.X + last), gy = Math.Clamp(pos.Y, at.Y, at.Y + last);
         bool replan = !mover.Moving || ((world.Tick + unit.Id) % ChaseReplanInterval == 0
                                         && Math.Max(Math.Abs(mover.GoalX - gx), Math.Abs(mover.GoalY - gy)) > 1);
-        if (replan) Movement.SetGoal(world, ref mover, pos, gx, gy);
+        if (!replan || Movement.SetGoal(world, ref mover, pos, gx, gy) || mover.Moving) return;
+        // Walls stand between the soldier and the target: march on it, breaking through on the way.
+        unit.GetComponent<Order>() = new Order { Kind = OrderKind.AttackMove, TargetX = gx, TargetY = gy, Public = true };
+        Breach(world, unit, type, targets, new HashSet<int>());
+    }
+
+    // A soldier stopped by walls attacks the nearest enemy wall or gate within reach of where they stand. Returns false
+    // if there is none (the way is blocked by water or the like).
+    private static bool Breach(World world, Entity unit, UnitType type, List<Entity> targets, HashSet<int> dead)
+    {
+        var pos = unit.GetComponent<TilePosition>();
+        int player = unit.GetComponent<Owner>().Player;
+        int radius = world.Content.Military.Combat.BreachRadius;
+        Entity best = default;
+        int bestDistance = int.MaxValue;
+        foreach (var candidate in targets.Count > 0 ? targets : Targets(world))
+        {
+            if (dead.Contains(candidate.Id) || !candidate.HasComponent<Building>() || !Buildings.TypeOf(world, candidate).Def.Wall
+                || !Buildings.IsComplete(candidate))
+                continue;
+            int distance = candidate.GetComponent<TilePosition>().DistanceTo(pos.X, pos.Y);
+            if (distance > radius || distance >= bestDistance || !Combat.IsEnemy(world, player, candidate)) continue;
+            best = candidate;
+            bestDistance = distance;
+        }
+        if (best.IsNull) return false;
+        unit.GetComponent<Order>().Target = best.Id;
+        return true;
     }
 
     // One hit by `attackerId` of `player` on the target: people lose health (and soldiers morale), buildings take damage.

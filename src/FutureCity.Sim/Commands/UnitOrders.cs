@@ -4,24 +4,25 @@ using FutureCity.Sim.Navigation;
 
 namespace FutureCity.Sim.Commands;
 
-/// <summary>Walk to a tile. A group spreads out over the nearest free tiles around it.</summary>
+/// <summary>
+/// Walk to a tile. A group spreads out over the nearest free tiles around it; a group of soldiers (at least
+/// <see cref="Formations.MinGroup"/> people) marches there in <see cref="Formation"/>.
+/// </summary>
 /// <param name="Units">Ids of the citizens to move.</param>
 /// <param name="X">Target column.</param>
 /// <param name="Y">Target row.</param>
 public sealed record MoveUnits(int[] Units, int X, int Y) : Command
 {
+    /// <summary>How a group of soldiers lines up (Line unless given).</summary>
+    public Formation Formation { get; init; }
+
     /// <inheritdoc />
     public override void Execute(World world)
     {
         var units = UnitOrders.Select(world, Player, Units, Who.Everyone);
         int x = Math.Clamp(X, 0, world.Map.Width - 1), y = Math.Clamp(Y, 0, world.Map.Height - 1);
-        var spots = UnitOrders.SpreadAround(world, x, y, units.Count);
-        for (int i = 0; i < units.Count; i++)
-        {
-            var unit = units[i];
-            UnitOrders.Assign(unit, OrderKind.Move);
-            Movement.SetGoal(world, ref unit.GetComponent<Mover>(), unit.GetComponent<TilePosition>(), spots[i].X, spots[i].Y);
-        }
+        foreach (var unit in units) UnitOrders.Assign(unit, OrderKind.Move);
+        UnitOrders.Send(world, units, x, y, Formation);
     }
 }
 
@@ -188,6 +189,20 @@ internal static class UnitOrders
         {
             Kind = OrderKind.Gather, TargetType = TargetType.Tile, TargetKind = terrain, TargetX = x, TargetY = y, Public = true,
         };
+
+    /// <summary>
+    /// Walks the units to (x, y): a group of soldiers marches in formation, anyone else spreads out over the nearest free
+    /// tiles. Returns each unit's destination.
+    /// </summary>
+    public static List<(int X, int Y)> Send(World world, List<Entity> units, int x, int y, Formation formation)
+    {
+        if (units.Count >= Formations.MinGroup && units.Any(u => u.HasComponent<Soldier>()))
+            return Formations.March(world, units, x, y, formation);
+        var spots = SpreadAround(world, x, y, units.Count);
+        for (int i = 0; i < units.Count; i++)
+            Movement.SetGoal(world, ref units[i].GetComponent<Mover>(), units[i].GetComponent<TilePosition>(), spots[i].X, spots[i].Y);
+        return spots;
+    }
 
     /// <summary>The <paramref name="count"/> walkable tiles nearest (x, y), ring by ring in scan order.</summary>
     public static List<(int X, int Y)> SpreadAround(World world, int x, int y, int count)

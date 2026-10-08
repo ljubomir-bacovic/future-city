@@ -42,7 +42,7 @@ public sealed class MerchantSystem : ISimSystem
         var content = world.Content;
         var entity = world.CreateEntity();
         entity.AddComponent(new TilePosition(x, y));
-        entity.AddComponent(new Mover(content.Citizens.MoveTicksPerTile, x, y));
+        entity.AddComponent(new Mover(content.Citizens.MoveTicksPerTile, x, y, gates: player)); // the town lets traders in
         entity.AddComponent(new Owner { Player = Players.Nature });
         entity.AddComponent(new Merchant
         {

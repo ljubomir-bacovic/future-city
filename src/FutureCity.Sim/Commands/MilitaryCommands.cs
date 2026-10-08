@@ -79,25 +79,24 @@ public sealed record Attack(int[] Units, int Target) : Command
     }
 }
 
-/// <summary>Soldiers walk to a tile and fight every enemy they meet on the way.</summary>
+/// <summary>
+/// Soldiers walk to a tile and fight every enemy they meet on the way; a group marches in <see cref="Formation"/>.
+/// </summary>
 /// <param name="Units">Ids of the soldiers.</param>
 /// <param name="X">Target column.</param>
 /// <param name="Y">Target row.</param>
 public sealed record AttackMove(int[] Units, int X, int Y) : Command
 {
+    /// <summary>How the group lines up (Line unless given).</summary>
+    public Formation Formation { get; init; }
+
     /// <inheritdoc />
     public override void Execute(World world)
     {
         var units = UnitOrders.Select(world, Player, Units, Who.Soldiers);
         int x = Math.Clamp(X, 0, world.Map.Width - 1), y = Math.Clamp(Y, 0, world.Map.Height - 1);
-        var spots = UnitOrders.SpreadAround(world, x, y, units.Count);
+        var spots = UnitOrders.Send(world, units, x, y, Formation);
         for (int i = 0; i < units.Count; i++)
-        {
-            units[i].GetComponent<Order>() = new Order
-            {
-                Kind = OrderKind.AttackMove, TargetX = spots[i].X, TargetY = spots[i].Y, Public = true,
-            };
-            Movement.SetGoal(world, ref units[i].GetComponent<Mover>(), units[i].GetComponent<TilePosition>(), spots[i].X, spots[i].Y);
-        }
+            units[i].GetComponent<Order>() = new Order { Kind = OrderKind.AttackMove, TargetX = spots[i].X, TargetY = spots[i].Y, Public = true };
     }
 }

@@ -35,7 +35,7 @@ public static class Spawn
         var rules = world.Content.Citizens;
         var entity = world.CreateEntity();
         entity.AddComponent(new TilePosition(x, y));
-        entity.AddComponent(new Mover(rules.MoveTicksPerTile, x, y));
+        entity.AddComponent(new Mover(rules.MoveTicksPerTile, x, y, gates: player));
         entity.AddComponent(new Owner { Player = player });
         entity.AddComponent(new Citizen
         {
@@ -86,6 +86,7 @@ public static class Spawn
         entity.AddComponent(new Building { Kind = kind });
         entity.AddComponent(Inventory.Empty(world.Content.Goods.Count));
         if (!complete) entity.AddComponent(new Construction());
+        else if (type.Def.Wall) world.Map.SetWall(x, y, player, type.Def.Gate);
         if (type.Def.Market) entity.AddComponent(Markets.NewMarket(world.Content));
         if (type.Def.Field != null)
         {
