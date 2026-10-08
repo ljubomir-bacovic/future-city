@@ -36,6 +36,7 @@
     "foodTargetPerCapita": 25,  // meals in store per person the band aims for
     "buildPriority": 60,        // demand score of helping at a construction site
     "researchPriority": 30,     // demand score of working at a shrine while something can be discovered
-    "maxBuildersPerSite": 3
+    "maxBuildersPerSite": 3,
+    "gatherRadius": 30          // how far from camp (in tiles) automatic gatherers look for sources
   }
 }

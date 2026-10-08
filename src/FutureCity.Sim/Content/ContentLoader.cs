@@ -210,6 +210,7 @@ public static partial class ContentLoader
         CheckRange(f, "jobs.buildPriority", c.Jobs.BuildPriority, 0, 1_000_000, errors);
         CheckRange(f, "jobs.researchPriority", c.Jobs.ResearchPriority, 0, 1_000_000, errors);
         CheckRange(f, "jobs.maxBuildersPerSite", c.Jobs.MaxBuildersPerSite, 1, 100, errors);
+        CheckRange(f, "jobs.gatherRadius", c.Jobs.GatherRadius, 1, 512, errors);
     }
 
     private static void ValidateNature(NatureFile nature, HashSet<string> goods, List<string> errors)

@@ -62,9 +62,19 @@ public class GameplayTests
     [InlineData(3UL)]
     public void A_settling_band_reaches_the_dark_ages_in_about_five_to_seven_minutes(ulong seed)
     {
-        var (sim, events) = Settle(seed, 6000);
-        bool reached = events.Any(e => e.Kind == SimEventKind.EraReached);
-        Assert.True(reached, "the Dark Ages were not reached in 10 minutes");
+        var sim = GameSupport.NewGame(seed);
+        var bot = new SettlerBot(Players.Human);
+        var events = new List<SimEvent>();
+        long? reachedAt = null;
+        for (int i = 0; i < SimClock.FromSeconds(600); i++)
+        {
+            bot.Act(sim);
+            sim.Step();
+            events.AddRange(sim.World.Events);
+            if (reachedAt == null && sim.World.Events.Any(e => e.Kind == SimEventKind.EraReached)) reachedAt = sim.World.Tick;
+        }
+        // Headless runs spread around 5-7 minutes; a 3-8 minute window keeps the test stable and still tracks the target.
+        Assert.True(reachedAt >= SimClock.FromSeconds(180) && reachedAt <= SimClock.FromSeconds(480), $"Dark Ages reached at tick {reachedAt?.ToString() ?? "never"}, expected 3-8 minutes");
         Assert.Equal("dark_ages", Emergence.Civics.EraOf(sim.World, Players.Human).Def.Id);
         Assert.DoesNotContain(events, e => e.Kind == SimEventKind.DiedOfStarvation);
     }

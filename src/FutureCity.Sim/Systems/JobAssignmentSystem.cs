@@ -14,9 +14,6 @@ namespace FutureCity.Sim.Systems;
 /// </summary>
 public sealed class JobAssignmentSystem : ISimSystem
 {
-    // How far from camp automatic gatherers look for sources.
-    private const int GatherRadius = 30;
-
     /// <inheritdoc />
     public void Update(World world)
     {
@@ -107,7 +104,13 @@ public sealed class JobAssignmentSystem : ISimSystem
         var rules = world.Content.Citizens.Jobs;
         var type = Buildings.TypeOf(world, building);
         if (!Buildings.IsComplete(building))
-            return working < rules.MaxBuildersPerSite ? rules.BuildPriority / (1 + working) : 0;
+        {
+            if (working >= rules.MaxBuildersPerSite) return 0;
+            // Builders help only if they can work or fetch something; otherwise gatherers are needed first.
+            var missing = Buildings.MissingMaterials(world, building);
+            bool canProgress = missing.All(m => m == 0) || missing.Where((m, g) => m > 0 && demand.Store[g] > 0).Any();
+            return canProgress ? rules.BuildPriority / (1 + working) : 0;
+        }
         if (working >= type.Def.Workers) return 0;
 
         if (type.Def.Research > 0)
@@ -180,25 +183,26 @@ public sealed class JobAssignmentSystem : ISimSystem
     private static bool TryFindSource(World world, int good, TilePosition from, out Entity source, out TilePosition tile)
     {
         var content = world.Content;
+        int radius = content.Citizens.Jobs.GatherRadius;
         int capacity = content.Citizens.CarryCapacity;
         source = default;
         tile = default;
         for (int kind = 0; kind < content.Plants.Count; kind++)
         {
-            if (content.PlantGood(kind) == good && Sources.TryFindPlant(world, kind, from.X, from.Y, GatherRadius, out source, capacity))
+            if (content.PlantGood(kind) == good && Sources.TryFindPlant(world, kind, from.X, from.Y, radius, out source, capacity))
                 return true;
         }
         for (int kind = 0; kind < content.Animals.Count; kind++)
         {
             if (content.AnimalGood(kind) != good) continue;
-            if (Sources.TryFindCarcass(world, from.X, from.Y, GatherRadius, out source)
+            if (Sources.TryFindCarcass(world, from.X, from.Y, radius, out source)
                 && content.AnimalGood(source.GetComponent<Carcass>().Kind) == good)
                 return true;
-            if (Sources.TryFindAnimal(world, kind, from.X, from.Y, GatherRadius, out source)) return true;
+            if (Sources.TryFindAnimal(world, kind, from.X, from.Y, radius, out source)) return true;
         }
-        if (Sources.TryFindDepositOf(world, good, from.X, from.Y, GatherRadius, out source)) return true;
+        if (Sources.TryFindDepositOf(world, good, from.X, from.Y, radius, out source)) return true;
         source = default;
-        if (!Sources.TryFindTile(world, good, -1, from.X, from.Y, GatherRadius, out int x, out int y)) return false;
+        if (!Sources.TryFindTile(world, good, -1, from.X, from.Y, radius, out int x, out int y)) return false;
         tile = new TilePosition(x, y);
         return true;
     }

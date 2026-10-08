@@ -28,6 +28,8 @@ public sealed partial class OrderSystem
         if (missing.Any(m => m > 0))
         {
             if (TryFetchFirst(world, unit, ref order, missing)) return;
+            // Nothing in store to bring: an organized village sends its automatic builders to gather it instead.
+            if (order.Auto && Civics.HasAutoJobs(world, unit.GetComponent<Owner>().Player)) { order = default; return; }
             ApproachEntity(world, unit, site, reach: 1); // wait at the site until materials turn up
             return;
         }

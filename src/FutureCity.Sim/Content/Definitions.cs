@@ -194,6 +194,8 @@ public sealed record JobRules
     public required int ResearchPriority { get; init; }
     /// <summary>Most builders sent to one site automatically.</summary>
     public required int MaxBuildersPerSite { get; init; }
+    /// <summary>How far from camp, in tiles, automatic gatherers look for sources.</summary>
+    public required int GatherRadius { get; init; }
 }
 
 /// <summary>Citizen ageing, needs and work rates (citizens.json).</summary>
