@@ -8,8 +8,9 @@ using Godot;
 namespace FutureCity.Game;
 
 /// <summary>
-/// Draws people, animals, plants and camps as simple placeholder shapes (until the illustrated art arrives in
-/// Phase 8). Walkers are interpolated between ticks, and everything is drawn back to front.
+/// Draws people, animals, plants, deposits, camps and buildings as simple placeholder shapes (until the illustrated
+/// art arrives in Phase 8). Walkers are interpolated between ticks, and everything is drawn back to front.
+/// Construction sites show a scaffold and a progress bar; fields show their crop.
 /// </summary>
 public partial class EntityView : Node2D
 {
@@ -27,6 +28,11 @@ public partial class EntityView : Node2D
     private static readonly Color SelectRing = new(1, 1, 1, 0.9f);
     private static readonly Color HealthGood = new("#5ecf5e");
     private static readonly Color HealthBad = new("#d94a3a");
+    private static readonly Color Soil = new("#7a5a3a");
+    private static readonly Color Sprout = new("#6fae45");
+    private static readonly Color RipeCrop = new("#e2c04a");
+    private static readonly Color Scaffold = new("#c9a46a");
+    private static readonly Color Thatch = new("#c8a35a");
 
     private SimulationDriver _driver = null!;
     private MapView _map = null!;
@@ -43,17 +49,35 @@ public partial class EntityView : Node2D
 
     public override void _Process(double delta) => QueueRedraw();
 
-    /// <summary>World-space position of an entity's feet, interpolated between ticks for walkers.</summary>
+    /// <summary>World-space position of an entity's feet (a building's footprint center), interpolated for walkers.</summary>
     public Vector2 WorldPosition(Entity entity)
     {
         var pos = entity.GetComponent<TilePosition>();
         var tile = new Vector2(pos.X, pos.Y);
+        if (entity.TryGetComponent<Building>(out var building))
+        {
+            float half = (_driver.Simulation!.World.Content.Buildings[building.Kind].Def.Size - 1) / 2f;
+            return _map.TileToLocal(tile + new Vector2(half, half));
+        }
         if (entity.TryGetComponent<Mover>(out var mover) && (mover.NextX != pos.X || mover.NextY != pos.Y) && mover.StepCost > 0)
         {
             float t = Mathf.Clamp((mover.Progress + (float)_driver.Alpha * Mover.ProgressPerTick) / mover.StepCost, 0f, 1f);
             tile = tile.Lerp(new Vector2(mover.NextX, mover.NextY), t);
         }
         return _map.TileToLocal(tile);
+    }
+
+    /// <summary>The four ground corners (top, right, bottom, left) of a square of tiles, shrunk by <paramref name="inset"/> tiles.</summary>
+    public Vector2[] Footprint(int x, int y, int size, float inset = 0f)
+    {
+        float a = -0.5f + inset, b = size - 0.5f - inset;
+        return
+        [
+            _map.TileToLocal(new Vector2(x + a, y + a)),
+            _map.TileToLocal(new Vector2(x + b, y + a)),
+            _map.TileToLocal(new Vector2(x + b, y + b)),
+            _map.TileToLocal(new Vector2(x + a, y + b)),
+        ];
     }
 
     public override void _Draw()
@@ -67,6 +91,8 @@ public partial class EntityView : Node2D
             var p = WorldPosition(e);
             _drawList.Add((p.Y, () => DrawCamp(p)));
         }
+        foreach (var e in world.Store.Query<Building, TilePosition>().Entities)
+            AddBuilding(world, e);
         foreach (var e in world.Store.Query<Plant, TilePosition>().Entities)
         {
             var p = WorldPosition(e);
@@ -74,6 +100,16 @@ public partial class EntityView : Node2D
             int max = world.Content.Plants[plant.Kind].MaxFood;
             var color = new Color(world.Content.Plants[plant.Kind].Color);
             _drawList.Add((p.Y, () => DrawBush(p, plant.Food, max, color)));
+        }
+        foreach (var e in world.Store.Query<Deposit, TilePosition>().Entities)
+        {
+            var p = WorldPosition(e);
+            var deposit = e.GetComponent<Deposit>();
+            var def = world.Content.Deposits[deposit.Kind];
+            float fill = Mathf.Clamp((float)deposit.Amount / def.Amount, 0.25f, 1f);
+            var color = new Color(def.Color);
+            bool pit = def.NearWater;
+            _drawList.Add((p.Y, () => { if (pit) DrawClayPit(p, color, fill); else DrawRocks(p, color, fill); }));
         }
         foreach (var e in world.Store.Query<Carcass, TilePosition>().Entities)
         {
@@ -96,13 +132,53 @@ public partial class EntityView : Node2D
             bool adult = Bands.IsAdult(world, citizen);
             bool selected = _selection.IsSelected(e.Id);
             float health = (float)citizen.Health / rules.MaxHealth;
-            bool carrying = citizen.CarriedFood > 0;
-            _drawList.Add((p.Y, () => DrawPerson(p, adult ? 1f : 0.65f, selected, health, carrying)));
+            Color? load = citizen.Carried > 0 ? new Color(world.Content.Goods[citizen.CarriedGood].Color) : null;
+            bool tool = citizen.ToolWear > 0;
+            _drawList.Add((p.Y, () => DrawPerson(p, adult ? 1f : 0.65f, selected, health, load, tool)));
         }
 
         _drawList.Sort((a, b) => a.Depth.CompareTo(b.Depth));
         foreach (var (_, draw) in _drawList)
             draw();
+    }
+
+    private void AddBuilding(World world, Entity e)
+    {
+        var type = world.Content.Buildings[e.GetComponent<Building>().Kind];
+        var pos = e.GetComponent<TilePosition>();
+        int size = type.Def.Size;
+        var color = new Color(type.Def.Color);
+        bool selected = _selection.SelectedBuilding == e.Id;
+        if (e.TryGetComponent<Field>(out var field))
+        {
+            // Fields lie flat on the ground: draw them first, under everything standing on them.
+            int stacked = type.FieldGood >= 0 ? e.GetComponent<Inventory>().Amounts[type.FieldGood] : 0;
+            bool done = Buildings.IsComplete(e);
+            float growth = field.Stage == FieldStage.Growing
+                ? Mathf.Clamp(field.Progress / (float)(type.Def.Field!.GrowTicks * Labor.PerTick), 0, 1) : 0;
+            _drawList.Add((float.MinValue, () => DrawField(pos.X, pos.Y, size, done ? field.Stage : FieldStage.Fallow, growth, stacked, selected)));
+            if (!done) AddSiteBar(world, e, pos, size);
+            return;
+        }
+        var corners = Footprint(pos.X, pos.Y, size);
+        float depth = corners[2].Y;
+        if (Buildings.IsComplete(e))
+        {
+            string id = type.Def.Id;
+            _drawList.Add((depth, () => DrawBuilding(id, pos.X, pos.Y, size, color, selected)));
+        }
+        else
+        {
+            int percent = Buildings.ConstructionPercent(world, e);
+            _drawList.Add((depth, () => DrawSite(pos.X, pos.Y, size, color, percent, selected)));
+        }
+    }
+
+    private void AddSiteBar(World world, Entity e, TilePosition pos, int size)
+    {
+        int percent = Buildings.ConstructionPercent(world, e);
+        var top = Footprint(pos.X, pos.Y, size)[0];
+        _drawList.Add((float.MaxValue, () => DrawProgress(top + new Vector2(0, -8), percent)));
     }
 
     private void Ellipse(Vector2 center, float rx, float ry, Color color)
@@ -112,7 +188,7 @@ public partial class EntityView : Node2D
         DrawSetTransform(Vector2.Zero);
     }
 
-    private void DrawPerson(Vector2 feet, float scale, bool selected, float health, bool carrying)
+    private void DrawPerson(Vector2 feet, float scale, bool selected, float health, Color? load, bool tool)
     {
         if (selected)
         {
@@ -125,7 +201,8 @@ public partial class EntityView : Node2D
         DrawRect(new Rect2(body + new Vector2(-3.5f, -6) * scale, new Vector2(7, 12) * scale), Tunic);
         DrawCircle(feet + new Vector2(0, -19 * scale), 4 * scale, Skin);
         DrawCircle(feet + new Vector2(0, -21 * scale), 3 * scale, Hair);
-        if (carrying) DrawCircle(feet + new Vector2(4.5f, -11) * scale, 2.5f * scale, Meat);
+        if (tool) DrawLine(feet + new Vector2(-4, -8) * scale, feet + new Vector2(-7, -16) * scale, new Color("#5f6f7a"), 1.5f);
+        if (load is { } goods) DrawCircle(feet + new Vector2(4.5f, -11) * scale, 2.8f * scale, goods);
         if (selected)
         {
             var bar = new Rect2(feet + new Vector2(-8, -30 * scale), new Vector2(16, 2.5f));
@@ -178,6 +255,25 @@ public partial class EntityView : Node2D
         }
     }
 
+    private void DrawRocks(Vector2 feet, Color stone, float fill)
+    {
+        Ellipse(feet, 13 * fill + 4, 5 * fill + 2, Shadow);
+        var dark = stone.Darkened(0.35f);
+        DrawColoredPolygon([feet + new Vector2(-11, 0) * fill, feet + new Vector2(-7, -10) * fill, feet + new Vector2(1, -13) * fill,
+            feet + new Vector2(6, -6) * fill, feet + new Vector2(3, 1) * fill], stone);
+        DrawColoredPolygon([feet + new Vector2(1, -13) * fill, feet + new Vector2(6, -6) * fill, feet + new Vector2(3, 1) * fill,
+            feet + new Vector2(-1, -5) * fill], dark);
+        DrawColoredPolygon([feet + new Vector2(4, 1), feet + new Vector2(7, -6) * fill, feet + new Vector2(12, -4) * fill,
+            feet + new Vector2(11, 2)], stone.Lightened(0.1f));
+    }
+
+    private void DrawClayPit(Vector2 feet, Color clay, float fill)
+    {
+        Ellipse(feet, 12, 5.5f, clay.Darkened(0.2f));
+        Ellipse(feet + new Vector2(0, 0.5f), 9 * fill, 4 * fill, clay.Darkened(0.5f));
+        Ellipse(feet + new Vector2(-6, -2), 3, 1.5f, clay.Lightened(0.15f));
+    }
+
     private void DrawCamp(Vector2 feet)
     {
         Ellipse(feet, 22, 9, Shadow);
@@ -189,5 +285,113 @@ public partial class EntityView : Node2D
         DrawColoredPolygon([right + new Vector2(0, -18), right + new Vector2(10, 0), right + new Vector2(4, 0)], TentDark);
         DrawCircle(feet + new Vector2(0, 6), 4, Fire.Darkened(0.4f));
         DrawColoredPolygon([feet + new Vector2(-3, 6), feet + new Vector2(3, 6), feet + new Vector2(0, -3)], Fire);
+    }
+
+    private void DrawField(int x, int y, int size, FieldStage stage, float growth, int stacked, bool selected)
+    {
+        var ground = Footprint(x, y, size, 0.05f);
+        DrawColoredPolygon(ground, Soil);
+        var rows = stage switch
+        {
+            FieldStage.Ripe => RipeCrop,
+            FieldStage.Growing => Soil.Lerp(Sprout, 0.35f + 0.65f * growth),
+            _ => Soil.Darkened(0.15f),
+        };
+        // Furrows: stripes running across the field.
+        for (int i = 0; i < size * 3; i++)
+        {
+            float t = (i + 0.5f) / (size * 3);
+            var a = ground[0].Lerp(ground[3], t);
+            var b = ground[1].Lerp(ground[2], t);
+            DrawLine(a, b, rows, stage == FieldStage.Fallow ? 1f : 2.5f);
+        }
+        if (stacked > 0)
+        {
+            var center = _map.TileToLocal(new Vector2(x + size - 1, y + size - 1));
+            int sheaves = Math.Min(4, 1 + stacked / 40);
+            for (int i = 0; i < sheaves; i++)
+            {
+                var p = center + new Vector2(-8 + i * 5, -i % 2 * 3);
+                DrawColoredPolygon([p + new Vector2(-3, 0), p + new Vector2(3, 0), p + new Vector2(0, -10)], RipeCrop.Darkened(0.1f));
+            }
+        }
+        if (selected) DrawPolyline([.. ground, ground[0]], SelectRing, 1.5f);
+    }
+
+    // A simple house: walls on the footprint and a roof. Details depend on the building type.
+    private void DrawBuilding(string id, int x, int y, int size, Color color, bool selected)
+    {
+        float inset = size == 1 ? 0.12f : 0.08f;
+        var c = Footprint(x, y, size, inset);
+        float wall = id switch { "storehouse" => 16, "shrine" => 10, "hut" => 9, _ => 13 };
+        float roof = id switch { "storehouse" => 10, "shrine" => 16, "hut" => 16, _ => 12 };
+        var up = new Vector2(0, -wall);
+        var shade = color.Darkened(0.25f);
+        Ellipse((c[1] + c[3]) / 2 + new Vector2(0, 2), (c[1].X - c[3].X) / 2 + 4, (c[2].Y - c[0].Y) / 2 + 2, Shadow);
+        if (selected) DrawPolyline([.. c, c[0]], SelectRing, 1.5f);
+        DrawColoredPolygon([c[3], c[2], c[2] + up, c[3] + up], color);
+        DrawColoredPolygon([c[2], c[1], c[1] + up, c[2] + up], shade);
+        var roofColor = id == "hut" ? Thatch : id == "shrine" ? new Color("#e9e2cf") : color.Darkened(0.45f);
+        var peak = (c[0] + c[2]) / 2 + up + new Vector2(0, -roof);
+        DrawColoredPolygon([c[3] + up, c[2] + up, peak], roofColor);
+        DrawColoredPolygon([c[2] + up, c[1] + up, peak], roofColor.Darkened(0.2f));
+        var door = (c[2] + c[3]) / 2;
+        DrawRect(new Rect2(door + new Vector2(-2.5f, -7), new Vector2(5, 7)), new Color("#3a2a1a"));
+
+        switch (id)
+        {
+            case "mill":
+                var hub = (c[1] + c[2]) / 2 + new Vector2(4, -wall * 0.7f);
+                for (int i = 0; i < 4; i++)
+                {
+                    float a = i * Mathf.Pi / 2 + 0.4f;
+                    DrawLine(hub, hub + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 11, new Color("#efe6cf"), 2);
+                }
+                DrawCircle(hub, 2, new Color("#5a4632"));
+                break;
+            case "bakery":
+                var chimney = peak + new Vector2(6, 6);
+                DrawRect(new Rect2(chimney, new Vector2(4, 9)), new Color("#8a4a32"));
+                DrawCircle(chimney + new Vector2(2, -4), 3, new Color(0.85f, 0.85f, 0.85f, 0.6f));
+                break;
+            case "toolmaker":
+                var anvil = (c[2] + c[1]) / 2 + new Vector2(8, 2);
+                DrawRect(new Rect2(anvil + new Vector2(-4, -5), new Vector2(8, 3)), new Color("#4a5560"));
+                DrawRect(new Rect2(anvil + new Vector2(-1.5f, -2), new Vector2(3, 3)), new Color("#4a5560"));
+                break;
+            case "storehouse":
+                var crates = (c[3] + c[2]) / 2 + new Vector2(-10, 2);
+                DrawRect(new Rect2(crates + new Vector2(-4, -6), new Vector2(7, 6)), new Color("#9a7448"));
+                DrawRect(new Rect2(crates + new Vector2(3, -5), new Vector2(6, 5)), new Color("#8a6a3c"));
+                break;
+            case "shrine":
+                DrawCircle(peak + new Vector2(0, -3), 2.5f, new Color("#f2c94c"));
+                break;
+        }
+    }
+
+    // A construction site: the footprint marked out, a scaffold growing with progress, and a progress bar.
+    private void DrawSite(int x, int y, int size, Color color, int percent, bool selected)
+    {
+        var c = Footprint(x, y, size, 0.1f);
+        DrawColoredPolygon(c, color with { A = 0.18f });
+        DrawPolyline([.. c, c[0]], selected ? SelectRing : Scaffold, selected ? 1.5f : 1f);
+        float height = 4 + 14 * percent / 100f;
+        foreach (var corner in c)
+            DrawLine(corner, corner + new Vector2(0, -height), Scaffold, 1.5f);
+        if (percent >= 50)
+        {
+            var up = new Vector2(0, -height);
+            DrawColoredPolygon([c[3], c[2], c[2] + up, c[3] + up], color with { A = 0.55f });
+            DrawColoredPolygon([c[2], c[1], c[1] + up, c[2] + up], color.Darkened(0.25f) with { A = 0.55f });
+        }
+        DrawProgress(c[0] + new Vector2(0, -height - 8), percent);
+    }
+
+    private void DrawProgress(Vector2 center, int percent)
+    {
+        var bar = new Rect2(center + new Vector2(-12, 0), new Vector2(24, 3));
+        DrawRect(bar, new Color(0, 0, 0, 0.6f));
+        DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * percent / 100f, bar.Size.Y)), new Color("#f2c94c"));
     }
 }

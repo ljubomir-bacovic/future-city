@@ -7,6 +7,7 @@ namespace FutureCity.Sim.Tests;
 public class CitizenTests
 {
     private static readonly Content.CitizenRules Rules = TestSupport.Content.Citizens;
+    private static readonly int TicksPerYear = TestSupport.Content.Calendar.TicksPerYear;
 
     [Fact]
     public void Hungry_citizens_eat_from_the_shared_store()
@@ -18,7 +19,7 @@ public class CitizenTests
 
         sim.Step();
 
-        Assert.Equal(100 - Rules.FoodPerMeal, camp.GetComponent<Camp>().Food);
+        Assert.Equal(100 - Rules.FoodPerMeal, GameSupport.Berries(camp));
         Assert.Equal(Rules.EatAtHunger - Rules.HungerPerMeal, person.GetComponent<Citizen>().Hunger);
     }
 
@@ -28,11 +29,11 @@ public class CitizenTests
         var sim = GameSupport.Plain();
         GameSupport.Camp(sim, food: 0);
         var person = GameSupport.Adult(sim);
-        person.GetComponent<Citizen>() = person.GetComponent<Citizen>() with { Hunger = Rules.EatAtHunger, CarriedFood = Rules.FoodPerMeal + 3 };
+        person.GetComponent<Citizen>() = person.GetComponent<Citizen>() with { Hunger = Rules.EatAtHunger, CarriedGood = GameSupport.BerriesGood, Carried = Rules.FoodPerMeal + 3 };
 
         sim.Step();
 
-        Assert.Equal(3, person.GetComponent<Citizen>().CarriedFood);
+        Assert.Equal(3, person.GetComponent<Citizen>().Carried);
     }
 
     [Fact]
@@ -62,7 +63,7 @@ public class CitizenTests
         GameSupport.Run(sim, 10);
         Assert.True(person.GetComponent<Citizen>().Health < Rules.MaxHealth / 2);
 
-        camp.GetComponent<Camp>().Food = 1000;
+        GameSupport.SetAmount(camp, "berries", 1000);
         GameSupport.Run(sim, 10 + Rules.MaxHealth / Math.Max(1, Rules.HealthRegenPerTick));
         Assert.Equal(Rules.MaxHealth, person.GetComponent<Citizen>().Health);
     }
@@ -72,11 +73,11 @@ public class CitizenTests
     {
         var sim = GameSupport.Plain();
         GameSupport.Camp(sim, food: 100_000);
-        var elder = Spawn.Citizen(sim.World, Players.Human, 10, 10, -(Rules.OldAgeYears + 100L) * Rules.TicksPerYear);
+        var elder = Spawn.Citizen(sim.World, Players.Human, 10, 10, -(Rules.OldAgeYears + 100L) * TicksPerYear);
         var young = GameSupport.Adult(sim);
         int elderId = elder.Id;
 
-        var events = GameSupport.Run(sim, Rules.TicksPerYear * 2);
+        var events = GameSupport.Run(sim, TicksPerYear * 2);
 
         Assert.Contains(events, e => e.Kind == SimEventKind.DiedOfOldAge && e.Entity == elderId);
         Assert.True(sim.World.TryGetEntity(young.Id, out _));
@@ -107,7 +108,7 @@ public class CitizenTests
         int births = events.Count(e => e.Kind == SimEventKind.Birth);
         Assert.True(births > 0);
         Assert.Equal(2 + births, Bands.CensusOf(sim.World, Players.Human).Total);
-        Assert.True(camp.GetComponent<Camp>().Food <= 100_000 - births * Rules.Growth.BirthFoodCost);
+        Assert.True(GameSupport.Berries(camp) <= 100_000 - births * Rules.Growth.BirthFoodCost);
     }
 
     [Theory]

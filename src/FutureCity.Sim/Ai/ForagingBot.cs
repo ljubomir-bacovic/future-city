@@ -36,10 +36,23 @@ public sealed class ForagingBot
     public void Act(Simulation sim)
     {
         var world = sim.World;
-        if (world.Tick % IntervalTicks != 0 || !Bands.TryGetCamp(world, Player, out var camp)) return;
-        var campPos = camp.GetComponent<TilePosition>();
-
+        if (world.Tick % IntervalTicks != 0) return;
         var idle = new List<int>();
+        foreach (var unit in World.InIdOrder(world.Store.Query<Citizen, Order, Owner>()))
+        {
+            if (unit.GetComponent<Owner>().Player == Player && Bands.IsAdult(world, unit.GetComponent<Citizen>())
+                && unit.GetComponent<Order>().Kind == OrderKind.Idle)
+                idle.Add(unit.Id);
+        }
+        SendToFood(sim, idle);
+    }
+
+    /// <summary>Queues orders sending <paramref name="units"/> to gather berries or hunt, keeping the hunter share.</summary>
+    public void SendToFood(Simulation sim, IReadOnlyList<int> units)
+    {
+        var world = sim.World;
+        if (units.Count == 0 || !Bands.TryGetCamp(world, Player, out var camp)) return;
+        var campPos = camp.GetComponent<TilePosition>();
         var workersAt = new Dictionary<int, int>();
         int adults = 0, hunters = 0;
         foreach (var unit in World.InIdOrder(world.Store.Query<Citizen, Order, Owner>()))
@@ -47,12 +60,12 @@ public sealed class ForagingBot
             if (unit.GetComponent<Owner>().Player != Player || !Bands.IsAdult(world, unit.GetComponent<Citizen>())) continue;
             adults++;
             var order = unit.GetComponent<Order>();
-            if (order.Kind == OrderKind.Idle) idle.Add(unit.Id);
-            else if (order.Kind == OrderKind.Hunt || (order.Kind == OrderKind.Gather && !order.TargetIsPlant)) hunters++;
+            if (units.Contains(unit.Id)) continue; // about to get a new order
+            if (order.Kind == OrderKind.Hunt || (order.Kind == OrderKind.Gather && order.TargetType == TargetType.Carcass)) hunters++;
             if (order.Kind == OrderKind.Gather) workersAt[order.Target] = workersAt.GetValueOrDefault(order.Target) + 1;
         }
 
-        foreach (int id in idle)
+        foreach (int id in units)
         {
             bool wantHunter = hunters * 100 < adults * HuntersPercent;
             if (wantHunter && TryHunt(world, campPos, id, sim)) { hunters++; continue; }
@@ -83,14 +96,14 @@ public sealed class ForagingBot
 
     private bool TryHunt(World world, TilePosition from, int unit, Simulation sim)
     {
-        if (FoodSources.TryFindCarcass(world, from.X, from.Y, int.MaxValue, out var carcass))
+        if (Sources.TryFindCarcass(world, from.X, from.Y, int.MaxValue, out var carcass))
         {
             sim.Enqueue(new Gather([unit], carcass.Id) { Player = Player });
             return true;
         }
         for (int kind = 0; kind < world.Content.Animals.Count; kind++)
         {
-            if (!FoodSources.TryFindAnimal(world, kind, from.X, from.Y, int.MaxValue, out var animal)) continue;
+            if (!Sources.TryFindAnimal(world, kind, from.X, from.Y, int.MaxValue, out var animal)) continue;
             sim.Enqueue(new Hunt([unit], animal.Id) { Player = Player });
             return true;
         }

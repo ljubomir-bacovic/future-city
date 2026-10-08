@@ -28,12 +28,38 @@ internal static class GameSupport
     public static void SetTerrain(Simulation sim, string terrain, int x, int y) =>
         sim.World.Map.SetTerrain(x, y, sim.World.Content.TerrainIndex(terrain));
 
-    public static Entity Camp(Simulation sim, int x = 10, int y = 10, int food = 0, int player = Players.Human) =>
-        Spawn.Camp(sim.World, player, x, y, food);
+    /// <summary>A camp holding <paramref name="food"/> berries.</summary>
+    public static Entity Camp(Simulation sim, int x = 10, int y = 10, int food = 0, int player = Players.Human)
+    {
+        var camp = Spawn.Camp(sim.World, player, x, y);
+        Stores.Put(camp, BerriesGood, food);
+        return camp;
+    }
+
+    public static int BerriesGood => TestSupport.Content.GoodIndex("berries");
+
+    public static int Good(string id) => TestSupport.Content.GoodIndex(id);
+
+    /// <summary>Units of a good held by a store, site or workshop.</summary>
+    public static int Amount(Entity holder, string good) => holder.GetComponent<Inventory>().Amounts[Good(good)];
+
+    public static int Berries(Entity holder) => Amount(holder, "berries");
+
+    public static void SetAmount(Entity holder, string good, int amount) => holder.GetComponent<Inventory>().Amounts[Good(good)] = amount;
+
+    /// <summary>The human player's civilization record (tests on a plain map create it on demand).</summary>
+    public static Entity Civ(Simulation sim) =>
+        Emergence.Civics.TryGet(sim.World, Players.Human, out var civ) ? civ : Spawn.Civilization(sim.World, Players.Human);
+
+    public static Entity Building(Simulation sim, string id, int x, int y, bool complete = true, int player = Players.Human) =>
+        Spawn.Building(sim.World, player, sim.World.Content.BuildingIndex(id), x, y, complete);
+
+    public static Entity Deposit(Simulation sim, string id, int x, int y) =>
+        Spawn.Deposit(sim.World, sim.World.Content.DepositIndex(id), x, y);
 
     /// <summary>A 25-year-old, fed citizen.</summary>
     public static Entity Adult(Simulation sim, int x = 10, int y = 10, int player = Players.Human) =>
-        Spawn.Citizen(sim.World, player, x, y, sim.World.Tick - 25L * sim.World.Content.Citizens.TicksPerYear);
+        Spawn.Citizen(sim.World, player, x, y, sim.World.Tick - 25L * sim.World.Content.Calendar.TicksPerYear);
 
     public static Entity Plant(Simulation sim, int x, int y, int food)
     {
@@ -44,6 +70,32 @@ internal static class GameSupport
 
     public static Entity Deer(Simulation sim, int x, int y) =>
         Spawn.Animal(sim.World, sim.World.Content.AnimalIndex("deer"), x, y, x, y);
+
+    /// <summary>Sets the soil fertility of a square of tiles.</summary>
+    public static void SetFertility(Simulation sim, int x, int y, int size, int fertility)
+    {
+        for (int ty = y; ty < y + size; ty++)
+        {
+            for (int tx = x; tx < x + size; tx++)
+                sim.World.Map.SetFertility(tx, ty, fertility);
+        }
+    }
+
+    /// <summary>Steps until the given season begins.</summary>
+    public static void RunToSeason(Simulation sim, string season)
+    {
+        int perSeason = Calendar.TicksPerSeason(sim.World.Content);
+        RunUntil(sim, () => Calendar.Season(sim.World).Id == season && sim.World.Tick % perSeason == 0,
+            sim.World.Content.Calendar.TicksPerYear + 1);
+    }
+
+    /// <summary>Gives the player an established institution (default: chiefdom, which brings automatic jobs).</summary>
+    public static void Establish(Simulation sim, string institution = "chiefdom") =>
+        Civ(sim).GetComponent<Civilization>().Institutions[sim.World.Content.InstitutionIndex(institution)] = 1;
+
+    /// <summary>Teaches the player a technology.</summary>
+    public static void Learn(Simulation sim, string tech) =>
+        Civ(sim).GetComponent<Civilization>().Techs[sim.World.Content.TechIndex(tech)] = 1;
 
     /// <summary>Steps and returns every event raised on the way.</summary>
     public static List<SimEvent> Run(Simulation sim, int ticks)

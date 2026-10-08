@@ -14,8 +14,9 @@ namespace FutureCity.Game;
 /// <summary>
 /// Root of the game scene: loads content, starts a game and wires the view, camera, HUD and saving together.
 /// Command-line options (after "--"): --seed=N, --map=ID, --zoom=F, --screenshot=PATH, --frames=N,
-/// --select-all (select the band at start), --autoplay (a stand-in computer player runs the band),
-/// --skip=N (simulate N ticks before showing the game; useful with --autoplay for screenshots).
+/// --select-all (select the band at start), --autoplay[=forage] (a stand-in computer player runs the band: by default
+/// the settler that builds and farms), --skip=N (simulate N ticks before showing the game; useful with --autoplay for
+/// screenshots), --research (open the discoveries panel), --place=ID (start placing a building), --select-building=ID.
 /// </summary>
 public partial class Main : Node2D
 {
@@ -26,6 +27,8 @@ public partial class Main : Node2D
     private MapView _mapView = null!;
     private EntityView _entityView = null!;
     private SelectionController _selection = null!;
+    private BuildMenu _buildMenu = null!;
+    private ResearchPanel _research = null!;
     private RtsCamera _camera = null!;
     private Hud _hud = null!;
     private LaunchOptions _options = null!;
@@ -46,24 +49,36 @@ public partial class Main : Node2D
         _mapView = new MapView { Name = "MapView" };
         _entityView = new EntityView { Name = "EntityView" };
         _selection = new SelectionController { Name = "Selection" };
+        _buildMenu = new BuildMenu { Name = "BuildMenu" };
         _camera = new RtsCamera { Name = "Camera", EdgeScrollEnabled = _options.ScreenshotPath == null };
         _hud = new Hud { Name = "Hud" };
+        _research = new ResearchPanel { Name = "Research" };
         AddChild(_driver);
         AddChild(_mapView);
         AddChild(_entityView);
         AddChild(_selection);
+        AddChild(_buildMenu); // after the selection, so placement gets mouse clicks first
         AddChild(_camera);
         AddChild(_hud);
+        AddChild(_research);
         _camera.MakeCurrent();
 
         _driver.SimulationChanged += OnSimulationChanged;
         _driver.Ticked += OnTicked;
         _entityView.Initialize(_driver, _mapView, _selection);
         _selection.Initialize(_driver, _entityView, _mapView);
-        _hud.Initialize(_driver, _selection);
+        _research.Initialize(_driver);
+        _hud.Initialize(_driver, _selection, _research);
+        _buildMenu.Initialize(_driver, _mapView, _entityView);
+        _buildMenu.Message += _hud.ShowMessage;
 
-        var bot = _options.Autoplay ? new ForagingBot(Players.Human) : null;
-        if (bot != null) _driver.BeforeStep = bot.Act;
+        System.Action<Simulation>? bot = _options.Autoplay switch
+        {
+            "forage" => new ForagingBot(Players.Human).Act,
+            null => null,
+            _ => new SettlerBot(Players.Human).Act,
+        };
+        if (bot != null) _driver.BeforeStep = bot;
         var sim = Simulation.NewGame(_content, new GameSetup
         {
             Seed = _options.Seed ?? (ulong)System.Random.Shared.NextInt64(),
@@ -71,12 +86,18 @@ public partial class Main : Node2D
         });
         for (int i = 0; i < _options.SkipTicks; i++)
         {
-            bot?.Act(sim);
+            bot?.Invoke(sim);
             sim.Step();
         }
         _driver.Start(sim);
         if (_options.SelectAll)
             _selection.SelectAllOwn();
+        if (_options.Research)
+            _research.Toggle();
+        if (_options.Place != null)
+            _buildMenu.BeginPlacing(_options.Place);
+        if (_options.SelectBuilding != null)
+            _selection.SelectFirstBuilding(_options.SelectBuilding);
     }
 
     public override void _Process(double delta)
@@ -96,6 +117,7 @@ public partial class Main : Node2D
         else if (@event.IsActionPressed(InputActions.SpeedDown)) _driver.SetSpeed(_driver.Speed - 1);
         else if (@event.IsActionPressed(InputActions.QuickSave)) Save(QuickSavePath, "Game saved");
         else if (@event.IsActionPressed(InputActions.QuickLoad)) Load(QuickSavePath);
+        else if (@event.IsActionPressed(InputActions.ToggleResearch)) _research.Toggle();
         else return;
         GetViewport().SetInputAsHandled();
     }
@@ -113,6 +135,7 @@ public partial class Main : Node2D
 
     private void OnTicked()
     {
+        _mapView.SyncTerrain(_driver.Simulation!.World);
         if (_driver.Simulation!.World.Tick % AutosaveIntervalTicks == 0)
             Save(AutosavePath, "Autosaved");
     }
@@ -160,11 +183,11 @@ public partial class Main : Node2D
     }
 
     private sealed record LaunchOptions(ulong? Seed, string? MapSize, float? Zoom, string? ScreenshotPath, int ScreenshotFrames,
-        bool SelectAll, bool Autoplay, int SkipTicks)
+        bool SelectAll, string? Autoplay, int SkipTicks, bool Research = false, string? Place = null, string? SelectBuilding = null)
     {
         public static LaunchOptions Parse(string[] args)
         {
-            var options = new LaunchOptions(null, null, null, null, 60, false, false, 0);
+            var options = new LaunchOptions(null, null, null, null, 60, false, null, 0);
             foreach (var arg in args)
             {
                 var parts = arg.Split('=', 2);
@@ -177,7 +200,10 @@ public partial class Main : Node2D
                     "--screenshot" => options with { ScreenshotPath = value },
                     "--frames" => options with { ScreenshotFrames = int.Parse(value, CultureInfo.InvariantCulture) },
                     "--select-all" => options with { SelectAll = true },
-                    "--autoplay" => options with { Autoplay = true },
+                    "--autoplay" => options with { Autoplay = value.Length > 0 ? value : "settle" },
+                    "--research" => options with { Research = true },
+                    "--place" => options with { Place = value },
+                    "--select-building" => options with { SelectBuilding = value },
                     "--skip" => options with { SkipTicks = int.Parse(value, CultureInfo.InvariantCulture) },
                     _ => options,
                 };

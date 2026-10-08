@@ -79,8 +79,8 @@ public class OrderTests
         GameSupport.RunUntil(sim, () => person.GetComponent<Order>().Kind == OrderKind.Idle, 1000);
 
         Assert.Equal(0, bush.GetComponent<Plant>().Food);
-        Assert.True(camp.GetComponent<Camp>().Food >= 25, "everything picked (including any regrowth) reaches camp");
-        Assert.Equal(0, person.GetComponent<Citizen>().CarriedFood);
+        Assert.True(GameSupport.Berries(camp) >= 25, "everything picked (including any regrowth) reaches camp");
+        Assert.Equal(0, person.GetComponent<Citizen>().Carried);
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class OrderTests
         sim.Enqueue(new Hunt(hunters.Select(h => h.Id).ToArray(), deer.Id) { Player = Me });
 
         var events = new List<SimEvent>();
-        GameSupport.RunUntil(sim, () => { events.AddRange(sim.World.Events); return camp.GetComponent<Camp>().Food > 0; }, 1500);
+        GameSupport.RunUntil(sim, () => { events.AddRange(sim.World.Events); return GameSupport.Amount(camp, "meat") > 0; }, 1500);
 
         Assert.Contains(events, e => e.Kind == SimEventKind.AnimalKilled && e.Entity == deer.Id);
         Assert.False(deer.HasComponent<Animal>());
@@ -122,10 +122,10 @@ public class OrderTests
         var sim = GameSupport.Plain();
         var camp = GameSupport.Camp(sim, 10, 10);
         var person = GameSupport.Adult(sim, 25, 25);
-        person.GetComponent<Citizen>().CarriedFood = 7;
+        person.GetComponent<Citizen>() = person.GetComponent<Citizen>() with { CarriedGood = GameSupport.BerriesGood, Carried = 7 };
         sim.Enqueue(new ReturnToCamp([person.Id]) { Player = Me });
 
-        GameSupport.RunUntil(sim, () => camp.GetComponent<Camp>().Food == 7, 300);
+        GameSupport.RunUntil(sim, () => GameSupport.Berries(camp) == 7, 300);
         GameSupport.Run(sim, 1);
         Assert.Equal(OrderKind.Idle, person.GetComponent<Order>().Kind);
         Assert.True(person.GetComponent<TilePosition>().DistanceTo(10, 10) <= 1);

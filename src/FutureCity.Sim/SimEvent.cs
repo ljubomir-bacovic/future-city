@@ -13,6 +13,16 @@ public enum SimEventKind
     AnimalKilled,
     /// <summary>A wild animal was born.</summary>
     AnimalBorn,
+    /// <summary>A building was finished (<see cref="SimEvent.Detail"/> = building kind).</summary>
+    BuildingCompleted,
+    /// <summary>A ripe crop was lost because nobody harvested it in time (<see cref="SimEvent.Entity"/> = the farm).</summary>
+    CropsRotted,
+    /// <summary>A technology was discovered (<see cref="SimEvent.Detail"/> = tech index).</summary>
+    TechDiscovered,
+    /// <summary>An institution was established (<see cref="SimEvent.Detail"/> = institution index).</summary>
+    InstitutionEstablished,
+    /// <summary>A civilization entered a new era (<see cref="SimEvent.Detail"/> = era index).</summary>
+    EraReached,
 }
 
 /// <summary>
@@ -24,4 +34,5 @@ public enum SimEventKind
 /// <param name="Entity">The entity concerned (it may no longer exist).</param>
 /// <param name="X">Tile column where it happened.</param>
 /// <param name="Y">Tile row where it happened.</param>
-public readonly record struct SimEvent(SimEventKind Kind, int Player, int Entity, int X, int Y);
+/// <param name="Detail">Extra information depending on <paramref name="Kind"/> (e.g. which technology), or 0.</param>
+public readonly record struct SimEvent(SimEventKind Kind, int Player, int Entity, int X, int Y, int Detail = 0);

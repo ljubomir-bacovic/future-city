@@ -3,10 +3,10 @@
   // so a herd hunted faster than it breeds dies out (overhunting).
   "plants": [
     {
-      "id": "berry_bush", "name": "Berry bush", "color": "#a8324a",
+      "id": "berry_bush", "name": "Berry bush", "color": "#a8324a", "good": "berries",
       "maxFood": 120,
       "ticksPerFood": 4,            // gathering speed
-      "regrowIntervalTicks": 25,    // +regrowAmount every interval while the bush still has berries
+      "regrowIntervalTicks": 25,    // +regrowAmount every interval while the bush still has berries (seasons scale it)
       "regrowAmount": 1,
       "dormantTicks": 900,          // a stripped bush needs 90 s before it fruits again
       "clustersPer10kTiles": 25,
@@ -16,7 +16,7 @@
   ],
   "animals": [
     {
-      "id": "deer", "name": "Deer", "color": "#8a5a32",
+      "id": "deer", "name": "Deer", "color": "#8a5a32", "good": "meat",
       "food": 100,                  // meat from one carcass
       "killTicks": 30,              // time to bring one down once in reach
       "butcherTicksPerFood": 2,
@@ -31,6 +31,19 @@
       "herdsPer10kTiles": 10,
       "minHerdSize": 3, "maxHerdSize": 6,
       "startHerds": 1               // guaranteed herds within reach of the starting camp
+    }
+  ],
+  // Finite raw materials. Clay is found next to water.
+  "deposits": [
+    {
+      "id": "stone_outcrop", "name": "Stone outcrop", "color": "#9a9a92", "good": "stone",
+      "amount": 150, "ticksPerUnit": 6, "work": "quarry",
+      "clustersPer10kTiles": 8, "minClusterSize": 1, "maxClusterSize": 3, "startClusters": 1, "nearWater": false
+    },
+    {
+      "id": "clay_pit", "name": "Clay pit", "color": "#b5683f", "good": "clay",
+      "amount": 120, "ticksPerUnit": 5, "work": "dig",
+      "clustersPer10kTiles": 8, "minClusterSize": 1, "maxClusterSize": 2, "startClusters": 1, "nearWater": true
     }
   ]
 }

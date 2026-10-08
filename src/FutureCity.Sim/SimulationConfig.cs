@@ -28,14 +28,18 @@ public sealed class SimulationConfig
 
     private static ISimSystem[] DefaultSystems() =>
     [
-        // Execution order matters: orders decide where people go, movement moves them, then needs and life events.
+        // Execution order matters: idle people find jobs, orders decide where people go, movement moves them,
+        // then needs and life events, nature, and finally the emergence engine looks at the resulting society.
+        new JobAssignmentSystem(),
         new OrderSystem(),
         new MovementSystem(),
         new NeedsSystem(),
         new AgingSystem(),
         new PopulationSystem(),
+        new FieldSystem(),
         new PlantGrowthSystem(),
         new AnimalSystem(),
         new CarcassSystem(),
+        new EmergenceSystem(),
     ];
 }

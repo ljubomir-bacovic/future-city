@@ -15,6 +15,21 @@
     "waterPercent": 12,
     "forestPercent": 22,
     "featureSize": 16,      // size of lakes and woods in tiles (noise cell size)
-    "startClearRadius": 4   // open grassland around the starting camp
+    "startClearRadius": 4,  // open grassland around the starting camp
+    // Soil fertility in percent: varies with smooth noise and is higher close to water (river and lake soils).
+    "fertility": { "min": 35, "max": 85, "waterBonus": 15, "waterRadius": 3 }
+  },
+
+  // The calendar. Early eras pass quickly: a year lasts 48 s at 1x (10 ticks per second), a season 12 s.
+  "calendar": {
+    "ticksPerYear": 480,
+    "seasons": [
+      // cropGrowthPercent: crop growth speed; plantRegrowPercent: wild plant regrowth speed;
+      // sowing: fields can be sown; cropsRot: ripe crops still in the field are lost.
+      { "id": "spring", "name": "Spring", "cropGrowthPercent": 70,  "plantRegrowPercent": 100, "sowing": true,  "cropsRot": false },
+      { "id": "summer", "name": "Summer", "cropGrowthPercent": 100, "plantRegrowPercent": 150, "sowing": true,  "cropsRot": false },
+      { "id": "autumn", "name": "Autumn", "cropGrowthPercent": 40,  "plantRegrowPercent": 50,  "sowing": false, "cropsRot": false },
+      { "id": "winter", "name": "Winter", "cropGrowthPercent": 0,   "plantRegrowPercent": 0,   "sowing": false, "cropsRot": true }
+    ]
   }
 }

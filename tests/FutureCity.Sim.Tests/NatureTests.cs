@@ -8,6 +8,7 @@ public class NatureTests
 {
     private static readonly Content.PlantDef Bush = TestSupport.Content.Plants[0];
     private static readonly Content.AnimalDef DeerDef = TestSupport.Content.Animals[0];
+    private static readonly int TicksPerYear = TestSupport.Content.Calendar.TicksPerYear;
 
     [Fact]
     public void Plants_regrow_slowly_up_to_their_maximum()
@@ -18,8 +19,25 @@ public class NatureTests
         GameSupport.Run(sim, Bush.RegrowIntervalTicks * 4);
         Assert.Equal(10 + 4 * Bush.RegrowAmount, bush.GetComponent<Plant>().Food);
 
-        GameSupport.Run(sim, Bush.RegrowIntervalTicks * Bush.MaxFood);
+        GameSupport.RunUntil(sim, () => bush.GetComponent<Plant>().Food == Bush.MaxFood, TicksPerYear * 15);
+        GameSupport.Run(sim, Bush.RegrowIntervalTicks * 2);
         Assert.Equal(Bush.MaxFood, bush.GetComponent<Plant>().Food);
+    }
+
+    [Fact]
+    public void Nothing_regrows_in_winter()
+    {
+        var sim = GameSupport.Plain();
+        var bush = GameSupport.Plant(sim, 10, 10, food: 10);
+        int winter = TestSupport.Content.Calendar.Seasons.ToList().FindIndex(s => s.PlantRegrowPercent == 0);
+        int perSeason = Calendar.TicksPerSeason(TestSupport.Content);
+        GameSupport.Run(sim, winter * perSeason);
+        Assert.Equal("winter", Calendar.Season(sim.World).Id);
+        int before = bush.GetComponent<Plant>().Food;
+
+        GameSupport.Run(sim, perSeason - 1);
+
+        Assert.Equal(before, bush.GetComponent<Plant>().Food);
     }
 
     [Fact]
@@ -27,9 +45,11 @@ public class NatureTests
     {
         var sim = GameSupport.Plain();
         var bush = GameSupport.Plant(sim, 10, 10, food: 0);
-        bush.GetComponent<Plant>().DormantUntil = Bush.DormantTicks;
+        // Dormancy ends early in the second year's spring, when plants fruit.
+        long until = TicksPerYear + 10;
+        bush.GetComponent<Plant>().DormantUntil = until;
 
-        GameSupport.Run(sim, Bush.DormantTicks - 1);
+        GameSupport.Run(sim, (int)until - 1);
         Assert.Equal(0, bush.GetComponent<Plant>().Food);
         GameSupport.Run(sim, 2);
         Assert.True(bush.GetComponent<Plant>().Food > 0);

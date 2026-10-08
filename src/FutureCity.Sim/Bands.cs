@@ -21,7 +21,7 @@ public static class Bands
 
     /// <summary>Age in whole years.</summary>
     public static int AgeInYears(World world, in Citizen citizen) =>
-        (int)((world.Tick - citizen.BirthTick) / world.Content.Citizens.TicksPerYear);
+        (int)((world.Tick - citizen.BirthTick) / world.Content.Calendar.TicksPerYear);
 
     /// <summary>Whether the citizen is old enough to take orders.</summary>
     public static bool IsAdult(World world, in Citizen citizen) =>

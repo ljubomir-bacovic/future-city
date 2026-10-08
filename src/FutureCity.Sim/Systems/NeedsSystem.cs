@@ -1,12 +1,10 @@
-using Friflo.Engine.ECS;
 using FutureCity.Sim.Components;
-using FutureCity.Sim.Content;
 
 namespace FutureCity.Sim.Systems;
 
 /// <summary>
-/// Hunger, eating and starvation. Citizens eat from their band's shared store (the tribe pools its food),
-/// or from what they carry when the store is empty. A starving citizen loses health and dies at zero.
+/// Hunger, eating and starvation. Citizens eat from their band's shared stores (the tribe pools its food), best food
+/// first, or from food they carry when the stores are empty. A starving citizen loses health and dies at zero.
 /// </summary>
 public sealed class NeedsSystem : ISimSystem
 {
@@ -14,7 +12,6 @@ public sealed class NeedsSystem : ISimSystem
     public void Update(World world)
     {
         var rules = world.Content.Citizens;
-        var camps = new Dictionary<int, Entity>();
         foreach (var unit in World.InIdOrder(world.Store.Query<Citizen, Owner>()))
         {
             ref var citizen = ref unit.GetComponent<Citizen>();
@@ -22,11 +19,7 @@ public sealed class NeedsSystem : ISimSystem
             citizen.Hunger = Math.Min(rules.MaxHunger, citizen.Hunger + rules.HungerPerTick);
 
             if (citizen.Hunger >= rules.EatAtHunger)
-            {
-                if (!camps.TryGetValue(player, out var camp) && Bands.TryGetCamp(world, player, out camp))
-                    camps[player] = camp;
-                Eat(rules, ref citizen, camp);
-            }
+                Eat(world, player, ref citizen);
 
             if (citizen.Hunger >= rules.MaxHunger)
                 citizen.Health -= rules.StarvationDamagePerTick;
@@ -42,19 +35,19 @@ public sealed class NeedsSystem : ISimSystem
         }
     }
 
-    private static void Eat(CitizenRules rules, ref Citizen citizen, Entity camp)
+    private static void Eat(World world, int player, ref Citizen citizen)
     {
-        int eaten = 0;
-        if (!camp.IsNull)
+        var rules = world.Content.Citizens;
+        int need = rules.FoodPerMeal * 100;
+        int eaten = Stores.TakeFood(world, player, need);
+        int value = citizen.Carried > 0 ? world.Content.Nutrition(citizen.CarriedGood) : 0;
+        if (eaten < need && value > 0)
         {
-            ref var store = ref camp.GetComponent<Camp>();
-            eaten = Math.Min(rules.FoodPerMeal, store.Food);
-            store.Food -= eaten;
+            int units = Math.Min(citizen.Carried, (need - eaten + value - 1) / value);
+            citizen.Carried -= units;
+            eaten += units * value;
         }
-        int fromHand = Math.Min(rules.FoodPerMeal - eaten, citizen.CarriedFood);
-        citizen.CarriedFood -= fromHand;
-        eaten += fromHand;
         // A partial meal relieves hunger in proportion.
-        citizen.Hunger = Math.Max(0, citizen.Hunger - rules.HungerPerMeal * eaten / rules.FoodPerMeal);
+        citizen.Hunger = Math.Max(0, citizen.Hunger - (int)((long)rules.HungerPerMeal * Math.Min(eaten, need) / need));
     }
 }

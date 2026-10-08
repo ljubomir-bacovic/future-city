@@ -21,6 +21,7 @@ public static class InputActions
     public const string SpeedDown = "speed_down";
     public const string QuickSave = "quick_save";
     public const string QuickLoad = "quick_load";
+    public const string ToggleResearch = "toggle_research";
 
     /// <summary>Adds all actions to the InputMap (safe to call more than once).</summary>
     public static void Register()
@@ -38,6 +39,7 @@ public static class InputActions
         Add(SpeedDown, Key.Minus, Key.KpSubtract);
         Add(QuickSave, Key.F5);
         Add(QuickLoad, Key.F9);
+        Add(ToggleResearch, Key.R);
     }
 
     private static void Add(string action, params Key[] keys)

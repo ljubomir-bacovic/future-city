@@ -1,9 +1,12 @@
 {
   // Terrain types. Colors are placeholder art until the illustrated tiles arrive (Phase 8).
   // moveCost: walking cost in percent of open grassland (forest undergrowth slows people down).
+  // resource: a good that can be taken from the tile; when it runs out the tile becomes depletedTerrain
+  // (a cleared forest turns into grassland and does not grow back on its own).
   "terrains": [
     { "id": "grass",  "name": "Grassland", "color": "#7fae5b", "walkable": true,  "buildable": true,  "moveCost": 100 },
-    { "id": "forest", "name": "Forest",    "color": "#4a7a3d", "walkable": true,  "buildable": false, "moveCost": 160 },
+    { "id": "forest", "name": "Forest",    "color": "#4a7a3d", "walkable": true,  "buildable": false, "moveCost": 160,
+      "resource": { "good": "wood", "amount": 40, "ticksPerUnit": 4, "work": "woodcut", "depletedTerrain": "grass" } },
     { "id": "water",  "name": "Water",     "color": "#3f7fbf", "walkable": false, "buildable": false, "moveCost": 100 }
   ]
 }
