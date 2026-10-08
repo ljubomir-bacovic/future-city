@@ -127,6 +127,7 @@ public sealed class ContentDatabase
         Tools = parts.Goods.Tools;
         Progress = parts.Progress;
         Economy = parts.Economy;
+        Military = parts.Military;
         Hash = hash;
 
         _terrainIndex = Index(Terrains, t => t.Id);
@@ -172,7 +173,23 @@ public sealed class ContentDatabase
             Enum.GetValues<WorkKind>().Select(k => t.Activity.TryGetValue(WorkName(k), out int w) ? w : 0).ToArray())).ToArray();
         Institutions = Progress.Institutions.Select((x, i) => new InstitutionType(i, x, ParseCondition(x.Preconditions))).ToArray();
         Eras = Progress.Eras.Select((e, i) => new EraType(i, e, ParseCondition(e.Preconditions))).ToArray();
+        _unitIndex = Index(Military.Units, u => u.Id);
+        Units = Military.Units.Select((u, i) => new UnitType(i, u, GoodArray(u.Equipment), ParseCondition(u.Requires),
+            Enum.Parse<UnitRole>(u.Role, ignoreCase: true),
+            Military.Units.Select(other => u.Bonuses.TryGetValue(other.Id, out int p) ? p : 100).ToArray(),
+            u.Bonuses.TryGetValue("building", out int b) ? b : Military.Combat.BuildingDamagePercent)).ToArray();
     }
+
+    private readonly Dictionary<string, int> _unitIndex;
+
+    /// <summary>Soldiers, service and combat rules.</summary>
+    public MilitaryRules Military { get; }
+
+    /// <summary>Unit kinds in file order. Soldier components store the index.</summary>
+    public IReadOnlyList<UnitType> Units { get; }
+
+    /// <summary>Returns the index of the unit kind with the given id, or -1.</summary>
+    public int UnitIndex(string id) => _unitIndex.GetValueOrDefault(id, -1);
 
     private readonly Dictionary<string, int> _buildingIndex;
     private readonly Dictionary<string, int> _techIndex;
@@ -323,6 +340,7 @@ public sealed class ContentDatabase
             case "coins": return new FactRef(FactKind.Coins, 0);
             case "trades": return new FactRef(FactKind.Trades, 0);
             case "happiness": return new FactRef(FactKind.Happiness, 0);
+            case "soldiers": return new FactRef(FactKind.Soldiers, 0);
         }
         int dot = name.IndexOf('.');
         if (dot < 0) return null;
@@ -353,6 +371,7 @@ public sealed class ContentDatabase
         FactKind.Coins => "Coins in circulation",
         FactKind.Trades => "Trades made",
         FactKind.Happiness => "Average happiness",
+        FactKind.Soldiers => "Soldiers",
         FactKind.Class => Society.ClassNames[fact.Index],
         FactKind.Store => $"{Goods[fact.Index].Name} in store",
         FactKind.Gathered => $"{Goods[fact.Index].Name} gathered",
@@ -406,4 +425,5 @@ internal sealed record ContentParts(
     GoodsFile Goods,
     IReadOnlyList<BuildingDef> Buildings,
     ProgressRules Progress,
-    EconomyRules Economy);
+    EconomyRules Economy,
+    MilitaryRules Military);

@@ -50,6 +50,7 @@ public static class Civics
             Trades = civ.Trades,
             Happiness = Society.AverageHappiness(world, player),
             Classes = Society.Count(world, player),
+            Soldiers = Military.Count(world, player),
         };
     }
 

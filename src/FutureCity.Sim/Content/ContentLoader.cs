@@ -21,6 +21,7 @@ public static partial class ContentLoader
     internal const string BuildingsFile = "buildings.json";
     internal const string ProgressFile = "progress.json";
     internal const string EconomyFile = "economy.json";
+    internal const string MilitaryFile = "military.json";
     internal const string SilverGood = "silver";
 
     private static readonly JsonSerializerOptions Options = new()
@@ -48,6 +49,7 @@ public static partial class ContentLoader
         var buildings = Parse<BuildingsFile>(byPath, BuildingsFile, errors);
         var progress = Parse<ProgressRules>(byPath, ProgressFile, errors);
         var economy = Parse<EconomyRules>(byPath, EconomyFile, errors);
+        var military = Parse<MilitaryRules>(byPath, MilitaryFile, errors);
 
         if (goods != null)
             ValidateGoods(goods, errors);
@@ -64,14 +66,16 @@ public static partial class ContentLoader
             ValidateProgress(progress, errors);
         if (economy != null)
             ValidateEconomy(economy, goodIds, errors);
+        if (military != null)
+            ValidateMilitary(military, goodIds, errors);
         if (goods != null && buildings != null && progress != null)
-            ValidateConditions(goods, buildings, progress, errors);
+            ValidateConditions(goods, buildings, progress, military, errors);
 
         if (errors.Count > 0)
             throw new ContentException(errors);
 
         var parts = new ContentParts(rules!, terrainFile!.Terrains, citizens!, nature!, goods!, buildings!.Buildings, progress!,
-            economy!);
+            economy!, military!);
         return new ContentDatabase(parts, ComputeHash(byPath));
     }
 
@@ -298,6 +302,19 @@ public static partial class ContentLoader
             CheckRange(f, n + " shelter", b.Shelter, 0, 1000, errors);
             CheckRange(f, n + " workers", b.Workers, 0, 20, errors);
             CheckRange(f, n + " research", b.Research, 0, 1000, errors);
+            CheckRange(f, n + " hitPoints", b.HitPoints, 1, 1_000_000, errors);
+            if (b.Gate && !b.Wall)
+                errors.Add($"{f}: {n} is a gate, so it must also be a wall.");
+            if (b.Wall && b.Size != 1)
+                errors.Add($"{f}: {n} is a wall, so its size must be 1.");
+            if (b.Wall && (b.Workers > 0 || b.Shelter > 0 || b.Storage || b.Defence != null))
+                errors.Add($"{f}: {n} is a wall and cannot have workers, shelter, storage or defence.");
+            if (b.Defence is { } defence)
+            {
+                CheckRange(f, n + " defence attack", defence.Attack, 1, 100_000, errors);
+                CheckRange(f, n + " defence range", defence.Range, 1, 32, errors);
+                CheckRange(f, n + " defence attackTicks", defence.AttackTicks, 1, 10_000, errors);
+            }
             int jobs = (b.Recipe != null ? 1 : 0) + (b.Field != null ? 1 : 0) + (b.Research > 0 ? 1 : 0)
                        + (b.Market ? 1 : 0) + (b.Mint != null ? 1 : 0);
             if (jobs > 1)
@@ -416,8 +433,63 @@ public static partial class ContentLoader
         CheckRange(f, "classes.nobleWealthPercent", e.Classes.NobleWealthPercent, 100, 100_000, errors);
     }
 
+    private static void ValidateMilitary(MilitaryRules m, HashSet<string> goods, List<string> errors)
+    {
+        const string f = MilitaryFile;
+        CheckIds(f, "unit", m.Units.Select(u => u.Id), errors);
+        var unitIds = m.Units.Select(u => u.Id).ToHashSet();
+        if (m.Units.Count == 0)
+            errors.Add($"{f}: at least one unit is required.");
+        foreach (var u in m.Units)
+        {
+            string n = $"unit '{u.Id}'";
+            CheckColor(f, n, u.Color, errors);
+            CheckAmounts(f, n + " equipment", u.Equipment, goods, errors);
+            CheckRange(f, n + " health", u.Health, 1, 1_000_000, errors);
+            CheckRange(f, n + " attack", u.Attack, 0, 100_000, errors);
+            CheckRange(f, n + " armour", u.Armour, 0, 100_000, errors);
+            CheckRange(f, n + " range", u.Range, 1, 32, errors);
+            CheckRange(f, n + " attackTicks", u.AttackTicks, 1, 10_000, errors);
+            CheckRange(f, n + " sightRadius", u.SightRadius, u.Range, 64, errors);
+            CheckRange(f, n + " ticksPerTile", u.TicksPerTile, 1, 100, errors);
+            CheckRange(f, n + " morale", u.Morale, 1, 100, errors);
+            if (u.Role is not ("front" or "back" or "siege"))
+                errors.Add($"{f}: {n} role '{u.Role}' must be front, back or siege.");
+            foreach (var (target, percent) in u.Bonuses)
+            {
+                if (target != "building" && !unitIds.Contains(target))
+                    errors.Add($"{f}: {n} has a bonus against unknown unit '{target}' (use a unit id or 'building').");
+                CheckRange(f, $"{n} bonus '{target}'", percent, 0, 100_000, errors);
+            }
+        }
+        foreach (var (name, s) in new[] { ("levy", m.Service.Levy), ("paid", m.Service.Paid) })
+        {
+            CheckRange(f, $"service.{name}.moraleBonus", s.MoraleBonus, -100, 100, errors);
+            CheckRange(f, $"service.{name}.attackPercent", s.AttackPercent, 1, 1000, errors);
+            CheckRange(f, $"service.{name}.wagePercent", s.WagePercent, 0, 10_000, errors);
+        }
+        var c = m.Combat;
+        CheckRange(f, "combat.minDamage", c.MinDamage, 1, 100_000, errors);
+        CheckRange(f, "combat.buildingDamagePercent", c.BuildingDamagePercent, 0, 10_000, errors);
+        CheckRange(f, "combat.targetIntervalTicks", c.TargetIntervalTicks, 1, 1000, errors);
+        CheckRange(f, "combat.moraleLossPer100Damage", c.MoraleLossPer100Damage, 0, 100, errors);
+        CheckRange(f, "combat.allyDeathMoraleLoss", c.AllyDeathMoraleLoss, 0, 100, errors);
+        CheckRange(f, "combat.allyDeathRadius", c.AllyDeathRadius, 0, 64, errors);
+        CheckRange(f, "combat.routBelow", c.RoutBelow, 0, 100, errors);
+        CheckRange(f, "combat.routTicks", c.RoutTicks, 1, 100_000, errors);
+        CheckRange(f, "combat.moraleRecoveryPerCheck", c.MoraleRecoveryPerCheck, 0, 100, errors);
+        CheckRange(f, "combat.hungryMoraleLoss", c.HungryMoraleLoss, 0, 100, errors);
+        CheckRange(f, "combat.unpaidMoraleLoss", c.UnpaidMoraleLoss, 0, 100, errors);
+        CheckRange(f, "combat.desertAfterUnpaidChecks", c.DesertAfterUnpaidChecks, 1, 1000, errors);
+        CheckRange(f, "combat.lootSharePercent", c.LootSharePercent, 0, 100, errors);
+        CheckRange(f, "combat.lootDecayTicks", c.LootDecayTicks, 1, 1_000_000, errors);
+        CheckRange(f, "combat.marketSafetyRadius", c.MarketSafetyRadius, 0, 64, errors);
+        CheckRange(f, "combat.breachRadius", c.BreachRadius, 1, 16, errors);
+    }
+
     // Conditions refer to goods, buildings, techs and institutions, so they are checked once all those are known.
-    private static void ValidateConditions(GoodsFile goods, BuildingsFile buildings, ProgressRules progress, List<string> errors)
+    private static void ValidateConditions(GoodsFile goods, BuildingsFile buildings, ProgressRules progress,
+        MilitaryRules? military, List<string> errors)
     {
         var goodIndex = ContentDatabase.Index(goods.Goods, g => g.Id);
         var buildingIndex = ContentDatabase.Index(buildings.Buildings, b => b.Id);
@@ -441,6 +513,7 @@ public static partial class ContentLoader
         foreach (var t in progress.Techs) Check(ProgressFile, $"tech '{t.Id}' preconditions", t.Preconditions);
         foreach (var i in progress.Institutions) Check(ProgressFile, $"institution '{i.Id}' preconditions", i.Preconditions);
         foreach (var e in progress.Eras) Check(ProgressFile, $"era '{e.Id}' preconditions", e.Preconditions);
+        foreach (var u in military?.Units ?? []) Check(MilitaryFile, $"unit '{u.Id}' requires", u.Requires);
     }
 
     private static void CheckRange(string file, string name, int value, int min, int max, List<string> errors)

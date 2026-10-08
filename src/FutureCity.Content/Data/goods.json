@@ -17,7 +17,8 @@
     { "id": "stone",   "name": "Stone",   "color": "#9a9a92", "nutrition": 0,   "targetPerCapita": 3, "value": 20, "householdTarget": 0, "cpiWeight": 0 },
     { "id": "clay",    "name": "Clay",    "color": "#b5683f", "nutrition": 0,   "targetPerCapita": 3, "value": 15, "householdTarget": 0, "cpiWeight": 0 },
     { "id": "tools",   "name": "Tools",   "color": "#5f6f7a", "nutrition": 0,   "targetPerCapita": 1, "value": 250, "householdTarget": 1, "cpiWeight": 1 },
-    { "id": "silver",  "name": "Silver",  "color": "#c8cdd2", "nutrition": 0,   "targetPerCapita": 0, "value": 200, "householdTarget": 0, "cpiWeight": 0 }
+    { "id": "silver",  "name": "Silver",  "color": "#c8cdd2", "nutrition": 0,   "targetPerCapita": 0, "value": 200, "householdTarget": 0, "cpiWeight": 0 },
+    { "id": "horses",  "name": "Horses",  "color": "#7a4a2a", "nutrition": 0,   "targetPerCapita": 0, "value": 400, "householdTarget": 0, "cpiWeight": 0 }
   ],
 
   // Workers pick up a tool from a store when one is available. A tool speeds up gathering, building,
