@@ -63,16 +63,16 @@ The simulation owns all game state and rules; Godot only draws it and sends play
 
 **Goal:** the band settles, farms and enters the Dark Ages through the emergence engine.
 
-- [ ] Wood, stone and clay gathering
-- [ ] Building placement and construction: huts, storage, farms, workshops
-- [ ] Farming with soil fertility and seasons
-- [ ] Production chains: grain → flour → bread, wood → tools
-- [ ] Logistics: goods carried by citizens; distance affects throughput
-- [ ] Jobs: citizens assigned to buildings; automatic assignment by demand
-- [ ] Emergence engine: precondition expressions, evaluation each N ticks, "what's missing" data for the UI
-- [ ] First techs and institutions: tools, farming, chiefdom
-- [ ] Era transition Primitive → Dark Ages
-- [ ] Godot: building placement UI, construction states, era banner, research panel
+- [x] Wood, stone and clay gathering
+- [x] Building placement and construction: huts, storage, farms, workshops
+- [x] Farming with soil fertility and seasons
+- [x] Production chains: grain → flour → bread, wood → tools
+- [x] Logistics: goods carried by citizens; distance affects throughput
+- [x] Jobs: citizens assigned to buildings; automatic assignment by demand
+- [x] Emergence engine: precondition expressions, evaluation each N ticks, "what's missing" data for the UI
+- [x] First techs and institutions: tools, farming, chiefdom
+- [x] Era transition Primitive → Dark Ages
+- [x] Godot: building placement UI, construction states, era banner, research panel
 
 **Exit:** a player reaches the Dark Ages in about 5–7 minutes, and headless runs show stable population growth.
 

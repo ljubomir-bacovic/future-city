@@ -54,7 +54,9 @@ Run `dotnet build` and `dotnet test` after every change. Work is not done while 
    - Components are structs implementing `IComponent` with public integer/enum/bool fields and a stable `[ComponentKey("...")]`.
    - Use the game's own components (`TilePosition`, …). Friflo ships built-in float components such as `Position`; never use them in the simulation.
    - `World.Events` reports what happened during the last tick (births, deaths, kills) for the UI and statistics. Events are output only and must never feed back into rules.
-6. **Data-driven content.** Gameplay numbers and definitions live in `FutureCity.Content/Data/*.json` (embedded in the assembly), not in code. Definition types and validation live in `FutureCity.Sim/Content`. Every tech, institution and era has a precondition expression evaluated by the emergence engine.
+   - Goods are arrays indexed by good (`Inventory.Amounts`, `Civilization` counters); iterate them by index, never through content dictionaries. Content costs and recipes are resolved to such arrays in `ContentDatabase`.
+   - People carry goods: work that moves goods goes through stores (`Stores`) and the order system, never by teleporting goods between buildings.
+6. **Data-driven content.** Gameplay numbers and definitions live in `FutureCity.Content/Data/*.json` (embedded in the assembly), not in code. Definition types and validation live in `FutureCity.Sim/Content`. Every tech, institution and era has a precondition expression evaluated by the emergence engine (`Emergence/Condition.cs`; facts are listed at the top of `progress.json`). Conditions may only use facts about the society, never time, and are validated when content loads.
 7. **Save/load.** `SaveGame` writes the full state as canonical JSON; `SaveGame.StateHash` is the SHA-256 of that state. Any new world field or component must be saved and covered by the round-trip test. New commands must be registered in `CommandRegistry.CreateDefault()` under a name that never changes.
 
 ## Coding conventions
