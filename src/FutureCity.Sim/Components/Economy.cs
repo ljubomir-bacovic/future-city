@@ -55,6 +55,8 @@ public struct Market : IComponent
     public int BarterMatched;
     /// <summary>Commission paid to the market traders on the last market day.</summary>
     public int Commission;
+    /// <summary>When bartering: the good most wanted on the last market day, accepted as payment (-1 if none).</summary>
+    public int Medium;
 }
 
 /// <summary>Where a merchant caravan is in its visit.</summary>

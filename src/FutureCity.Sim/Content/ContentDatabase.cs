@@ -151,6 +151,7 @@ public sealed class ContentDatabase
         foreach (var d in _deposits) Source(d.Good, d.TicksPerUnit);
         foreach (var t in _terrainResource) if (t is { } r) Source(r.Good, r.TicksPerUnit);
         MerchantCargo = GoodArray(Economy.Merchants.Cargo);
+        Regalia = Enumerable.Range(0, Goods.Count).Select(g => Economy.Treasury.Regalia.Contains(Goods[g].Id)).ToArray();
         MerchantWants = GoodArray(Economy.Merchants.Wants);
         FoodGoods = Enumerable.Range(0, Goods.Count)
             .Where(g => Goods[g].Nutrition > 0)
@@ -218,6 +219,9 @@ public sealed class ContentDatabase
 
     /// <summary>Economy rules.</summary>
     public EconomyRules Economy { get; }
+
+    /// <summary>Whether only public workers may take a good from nature (the crown's mines), by good.</summary>
+    public IReadOnlyList<bool> Regalia { get; }
 
     /// <summary>Goods a merchant caravan brings, by good.</summary>
     public IReadOnlyList<int> MerchantCargo { get; }

@@ -364,6 +364,7 @@ public static partial class ContentLoader
         CheckGood(f, "households.firewood", e.Households.Firewood, goods, errors);
         CheckRange(f, "treasury.foodTargetPerCapita", e.Treasury.FoodTargetPerCapita, 0, 10_000, errors);
         CheckRange(f, "treasury.silverTarget", e.Treasury.SilverTarget, 0, 100_000, errors);
+        foreach (var good in e.Treasury.Regalia) CheckGood(f, "treasury.regalia", good, goods, errors);
         foreach (var (name, tax) in new[] { ("tribute", e.Taxes.Tribute), ("marketTax", e.Taxes.MarketTax), ("tariff", e.Taxes.Tariff) })
         {
             CheckRange(f, $"taxes.{name}.max", tax.Max, 0, 100, errors);
@@ -377,6 +378,7 @@ public static partial class ContentLoader
         CheckRange(f, "market.needPremiumPercent", m.NeedPremiumPercent, 0, 1000, errors);
         CheckRange(f, "market.surplusDiscountPercent", m.SurplusDiscountPercent, 0, 90, errors);
         CheckRange(f, "market.commissionPercent", m.CommissionPercent, 0, 50, errors);
+        CheckRange(f, "market.maxPriceMultiple", m.MaxPriceMultiple, 2, 10_000, errors);
         CheckRange(f, "money.coinsPerSilver", e.Money.CoinsPerSilver, 1, 100_000, errors);
         CheckRange(f, "money.minQuality", e.Money.MinQuality, 1, 100, errors);
         var w = e.Wages;
@@ -386,6 +388,8 @@ public static partial class ContentLoader
         CheckRange(f, "wages.switchMarginPercent", w.SwitchMarginPercent, 0, 1000, errors);
         CheckRange(f, "wages.switchesPerCheck", w.SwitchesPerCheck, 1, 100, errors);
         CheckRange(f, "wages.travelPercent", w.TravelPercent, 1, 100, errors);
+        CheckRange(f, "wages.crowdingPercent", w.CrowdingPercent, 0, 1000, errors);
+        CheckRange(f, "wages.hungerPremiumPercent", w.HungerPremiumPercent, 0, 1000, errors);
         var t = e.Merchants;
         CheckRange(f, "merchants.visitIntervalTicks", t.VisitIntervalTicks, 1, 1_000_000, errors);
         CheckRange(f, "merchants.stayTicks", t.StayTicks, 1, 1_000_000, errors);

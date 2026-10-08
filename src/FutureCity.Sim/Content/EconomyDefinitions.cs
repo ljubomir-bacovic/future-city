@@ -18,8 +18,10 @@ public sealed record TreasuryRules
 {
     /// <summary>Meals per person the treasury keeps as a reserve.</summary>
     public required int FoodTargetPerCapita { get; init; }
-    /// <summary>Silver the treasury keeps for the mint once coinage exists.</summary>
+    /// <summary>Silver the treasury keeps for the mint.</summary>
     public required int SilverTarget { get; init; }
+    /// <summary>Goods only public workers may take from nature (ids), such as silver from the crown's mines.</summary>
+    public required IReadOnlyList<string> Regalia { get; init; }
 }
 
 /// <summary>A tax rate the player sets.</summary>
@@ -59,6 +61,8 @@ public sealed record MarketRules
     public required int SurplusDiscountPercent { get; init; }
     /// <summary>Share of each sale paid to the market traders working that day.</summary>
     public required int CommissionPercent { get; init; }
+    /// <summary>Beliefs never exceed a good's starting value times this.</summary>
+    public required int MaxPriceMultiple { get; init; }
 }
 
 /// <summary>Coins.</summary>
@@ -85,6 +89,10 @@ public sealed record WageRules
     public required int SwitchesPerCheck { get; init; }
     /// <summary>Share of a gatherer's time spent working rather than walking, for income estimates.</summary>
     public required int TravelPercent { get; init; }
+    /// <summary>Expected income from a job falls by this percentage for each person already doing it.</summary>
+    public required int CrowdingPercent { get; init; }
+    /// <summary>Extra value of food to a family with less than half its target, in percent.</summary>
+    public required int HungerPremiumPercent { get; init; }
 }
 
 /// <summary>Visiting foreign merchants.</summary>

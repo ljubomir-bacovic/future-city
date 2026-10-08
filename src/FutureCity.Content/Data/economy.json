@@ -4,8 +4,8 @@
   // every market day each trader adjusts its beliefs to what it could and could not buy or sell.
 
   "households": {
-    "foodTargetPerMember": 20,  // meals a family wants to keep per member
-    "surplusPercent": 150,      // a family offers for sale what it holds beyond target x this
+    "foodTargetPerMember": 10,  // meals a family wants to keep per member
+    "surplusPercent": 120,      // a family (or the treasury) offers what it holds beyond target x this
     "inputBatches": 2,          // a crafter's family keeps inputs for this many batches
     "firewood": "wood"          // what families burn each season (amounts per season in rules.json)
   },
@@ -14,7 +14,8 @@
   // the public stores; after, they are paid wages.
   "treasury": {
     "foodTargetPerCapita": 10,  // meals per person the treasury keeps as a reserve
-    "silverTarget": 10          // silver the treasury buys for the mint once coinage exists
+    "silverTarget": 20,         // silver the treasury keeps for the mint
+    "regalia": ["silver"]       // the crown's right: only public workers mine silver
   },
 
   // Rates the player sets, in percent.
@@ -31,7 +32,8 @@
     "beliefPullPercent": 25,    // a trader who traded moves its belief this far toward the price paid
     "needPremiumPercent": 30,   // a trader short of a good bids up to this much above its belief
     "surplusDiscountPercent": 20, // a trader with a large surplus asks up to this much below its belief
-    "commissionPercent": 2      // share of each sale paid to the market traders working that day
+    "commissionPercent": 2,     // share of each sale paid to the market traders working that day
+    "maxPriceMultiple": 50      // beliefs never go above a good's starting value x this
   },
 
   "money": {
@@ -44,8 +46,10 @@
     "reserveChecks": 5,         // after coins, public workers the treasury can pay for this many job checks
     "publicPremiumPercent": 10, // public wage = typical income from private work + this
     "switchMarginPercent": 25,  // people change jobs only for this much more income
-    "switchesPerCheck": 2,      // most people who change jobs per family per check (keeps the labour market calm)
-    "travelPercent": 60         // share of a gatherer's day spent working rather than walking (income estimates)
+    "switchesPerCheck": 2,      // most people who change jobs per check (keeps the labour market calm)
+    "travelPercent": 60,        // share of a gatherer's day spent working rather than walking (income estimates)
+    "crowdingPercent": 15,      // expected income from a job falls this much for each person already doing it
+    "hungerPremiumPercent": 100 // food is worth this much more to a family with less than half the food it wants
   },
 
   // Foreign merchants visit once the marketplace stands. They sell what they bring and buy what they want around

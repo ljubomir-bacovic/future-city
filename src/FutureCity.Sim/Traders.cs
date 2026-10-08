@@ -26,6 +26,10 @@ public sealed class TradePlan
     public int[] Offered { get; }
     /// <summary>Units the trader would buy.</summary>
     public int[] Wanted { get; }
+    /// <summary>Meals the trader holds.</summary>
+    public int MealsHeld { get; internal set; }
+    /// <summary>Meals the trader wants to keep.</summary>
+    public int MealsTarget { get; internal set; }
 }
 
 /// <summary>
@@ -104,6 +108,8 @@ public static class Traders
     {
         var content = world.Content;
         int held = Stores.MealsIn(world, plan.Held);
+        plan.MealsHeld = held;
+        plan.MealsTarget = mealsTarget;
         var foods = content.FoodGoods.OrderBy(f => (long)beliefs[f] * 100 / content.Nutrition(f)).ThenBy(f => f).ToArray();
         foreach (int f in foods)
         {
@@ -167,13 +173,28 @@ public static class Traders
     }
 
     /// <summary>
-    /// What a unit of a good is worth to the trader when deciding what to work at: its belief, more if the family is
-    /// short of it, much less if it already has plenty and there is no market to sell the rest at.
+    /// What a unit of a good is worth to the trader when deciding what to work at: its belief; more if the family is
+    /// short of it, and much more if it is hungry or cannot buy it anywhere; much less if it already has plenty and
+    /// cannot sell the rest.
     /// </summary>
-    public static int Value(World world, Entity trader, TradePlan plan, int good, bool canSell)
+    /// <param name="world">The world.</param>
+    /// <param name="trader">A household.</param>
+    /// <param name="plan">Its current plan.</param>
+    /// <param name="good">The good.</param>
+    /// <param name="canSell">Whether there is a market to sell at.</param>
+    /// <param name="canBuy">Whether the good can be had at the market now.</param>
+    public static int Value(World world, Entity trader, TradePlan plan, int good, bool canSell, bool canBuy)
     {
+        var rules = world.Content.Economy;
         int value = trader.GetComponent<Trader>().Beliefs[good];
-        if (plan.Wanted[good] > 0) return value * (100 + world.Content.Economy.Market.NeedPremiumPercent) / 100;
+        int urgent = 100 + rules.Wages.HungerPremiumPercent;
+        if (world.Content.Goods[good].Nutrition > 0 && plan.MealsHeld * 2 < plan.MealsTarget)
+            return value * urgent / 100; // a hungry family wants food above all
+        if (plan.Wanted[good] > 0)
+        {
+            value = value * (100 + rules.Market.NeedPremiumPercent) / 100;
+            return canBuy ? value : value * urgent / 100; // nobody to get it from: make it yourself
+        }
         if (!canSell && plan.Held[good] >= plan.Target[good]) return value / 4;
         return value;
     }

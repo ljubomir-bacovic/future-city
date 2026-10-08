@@ -7,7 +7,7 @@ namespace FutureCity.Sim.Ai;
 
 /// <summary>
 /// A stand-in player that settles: it builds a storehouse, huts and a shrine, researches, establishes a chiefdom,
-/// farms and sets up workshops. Used for balancing and tests until the rival AI arrives (Phase 5). Like a human it
+/// farms and sets up workshops, then (with Private property, Coinage and Guilds) a marketplace and a mint. Used for balancing and tests until the rival AI arrives (Phase 5). Like a human it
 /// only reads the world and issues ordinary commands. Before the chiefdom it directs every adult (builders,
 /// workplaces, material gatherers, and everyone else on food); afterwards it leaves labour to the automatic jobs.
 /// </summary>
@@ -108,6 +108,9 @@ public sealed class SettlerBot
             : Can("toolmaker") && Count("toolmaker") == 0 ? "toolmaker"
             : Can("mill") && Done("farm") >= 1 && Count("mill") == 0 ? "mill"
             : Can("bakery") && Done("mill") >= 1 && Count("bakery") == 0 ? "bakery"
+            : facts.Era >= 1 && Count("hut") < 6 ? "hut" // settled families want homes of their own
+            : Can("marketplace") && Count("marketplace") == 0 ? "marketplace"
+            : Can("mint") && Count("mint") == 0 ? "mint"
             : null;
         if (next == null) return;
         int kind = world.Content.BuildingIndex(next);

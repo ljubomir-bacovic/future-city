@@ -47,7 +47,7 @@
     },
     {
       "id": "silver_vein", "name": "Silver vein", "color": "#c8cdd2", "good": "silver",
-      "amount": 40, "ticksPerUnit": 15, "work": "quarry",
+      "amount": 80, "ticksPerUnit": 15, "work": "quarry",
       "clustersPer10kTiles": 3, "minClusterSize": 1, "maxClusterSize": 1, "startClusters": 1, "nearWater": false
     }
   ]

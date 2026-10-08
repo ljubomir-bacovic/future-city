@@ -3,6 +3,7 @@ using System.Globalization;
 using FutureCity.Content;
 using FutureCity.Sim;
 using FutureCity.Sim.Ai;
+using FutureCity.Sim.Commands;
 using FutureCity.Sim.Components;
 using FutureCity.Sim.Content;
 using FutureCity.Sim.Emergence;
@@ -27,6 +28,9 @@ public static class Program
           --player <name>   Who plays: settle (stand-in bot that builds and farms, default),
                             forage (stand-in bot that only forages) or idle (no orders)
           --timeline        Print the band's state every game minute (single game)
+          --debase-at <s>   At this game second, set the coin quality to --quality (inflation experiments)
+          --quality <n>     Coin quality in percent for --debase-at (default 50)
+          --shock-at <s>    At this game second, destroy half of all grain (price shock experiments)
           --load <file>     Continue from a save instead of starting a new game
           --save <file>     Write a save after the run (single game only)
           --content <dir>   Load content JSON from a directory instead of the built-in data
@@ -87,6 +91,10 @@ public static class Program
             for (int i = 0; i < options.Ticks; i++)
             {
                 bot?.Invoke(sim);
+                if (options.DebaseAt is { } debase && sim.World.Tick == SimClock.FromSeconds(debase))
+                    sim.Enqueue(new SetCoinQuality(options.Quality) { Player = Players.Human });
+                if (options.ShockAt is { } shock && sim.World.Tick == SimClock.FromSeconds(shock))
+                    DestroyHalf(sim.World, sim.World.Content.GoodIndex("grain"));
                 sim.Step();
                 stats.Count(sim.World.Events, sim.World.Tick);
                 if (options.Timeline && sim.World.Tick % SimClock.FromSeconds(60) == 0)
@@ -107,18 +115,28 @@ public static class Program
         return 0;
     }
 
+    // An experiment, not a game rule: a sudden loss such as a granary fire.
+    private static void DestroyHalf(World world, int good)
+    {
+        foreach (var holder in World.InIdOrder(world.Store.Query<Inventory, Owner>()))
+        {
+            if (holder.GetComponent<Owner>().Player == Players.Human) holder.GetComponent<Inventory>().Amounts[good] /= 2;
+        }
+    }
+
     private static void PrintHeader() =>
         Console.WriteLine($"{"seed",-12} {"map",-7} {"time",6} {"pop",4} {"kids",4} {"food",6} {"born",5} {"starved",7} {"old",4} " +
                           $"{"deer",5} {"huts",4} {"farms",5} {"wood",5} {"stone",5} {"tools",5} {"bread",5} {"techs",5} {"era",-10} " +
-                          $"{"reached",7} {"ticks/s",9}  state hash");
+                          $"{"reached",7} {"prop",5} {"coin",5} {"guild",5} {"coins",7} {"cpi",4} {"grain$",6} {"bread$",6} " +
+                          $"{"tools$",6} {"happy",5} {"ticks/s",9}  state hash");
 
     private static void PrintRow(Simulation sim, GameStats stats, double? ticksPerSecond)
     {
         var w = sim.World;
         var census = Bands.CensusOf(w, Players.Human);
-        int food = Stores.Meals(w, Players.Human);
+        int food = Economy.Meals(w, Players.Human);
         int deer = w.Store.Query<Animal>().Count;
-        var store = Stores.Totals(w, Players.Human);
+        var store = Economy.Holdings(w, Players.Human);
         var built = Buildings.CountCompleted(w, Players.Human);
         int Built(string id) => built[w.Content.BuildingIndex(id)];
         int Stock(string id) => store[w.Content.GoodIndex(id)];
@@ -126,16 +144,25 @@ public static class Program
         string era = Civics.EraOf(w, Players.Human).Def.Id;
         string reached = stats.EraTick is { } tick ? FormatGameTime(tick) : "-";
         string speed = ticksPerSecond is { } tps ? tps.ToString("F0", CultureInfo.InvariantCulture) : "";
+        string When(string institution) =>
+            stats.Established.TryGetValue(w.Content.InstitutionIndex(institution), out long t) ? FormatGameTime(t) : "-";
+        bool money = Economy.HasMoney(w, Players.Human);
+        Economy.TryGetMarket(w, Players.Human, out var market);
+        int cpi = market.IsNull ? 0 : Markets.Cpi(w, market);
+        string Price(string id) => money ? Economy.Price(w, Players.Human, w.Content.GoodIndex(id)).ToString(CultureInfo.InvariantCulture) : "-";
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"{w.Setup.Seed,-12} {w.Setup.MapSize,-7} {FormatGameTime(w.Tick),6} {census.Total,4} {census.Children,4} {food,6} {stats.Births,5} " +
             $"{stats.Starved,7} {stats.OldAge,4} {deer,5} {Built("hut"),4} {Built("farm"),5} {Stock("wood"),5} {Stock("stone"),5} " +
-            $"{Stock("tools"),5} {Stock("bread"),5} {techs,5} {era,-10} {reached,7} {speed,9}  {SaveGame.StateHash(sim)[..16]}"));
+            $"{Stock("tools"),5} {Stock("bread"),5} {techs,5} {era,-10} {reached,7} {When("property"),5} {When("coinage"),5} " +
+            $"{When("guilds"),5} {Economy.MoneySupply(w, Players.Human),7} {cpi,4} {Price("grain"),6} {Price("bread"),6} " +
+            $"{Price("tools"),6} {Society.AverageHappiness(w, Players.Human),5} {speed,9}  {SaveGame.StateHash(sim)[..16]}"));
     }
 
     private sealed class GameStats
     {
         public int Births, Starved, OldAge, Kills;
         public long? EraTick;
+        public readonly Dictionary<int, long> Established = [];
 
         public long Tick;
 
@@ -152,6 +179,7 @@ public static class Program
                     case SimEventKind.DiedOfOldAge: OldAge++; break;
                     case SimEventKind.AnimalKilled: Kills++; break;
                     case SimEventKind.EraReached: EraTick = e.Player == Players.Human ? Tick : EraTick; break;
+                    case SimEventKind.InstitutionEstablished: Established.TryAdd(e.Detail, Tick); break;
                 }
             }
         }
@@ -174,6 +202,9 @@ public static class Program
         public string? ContentDir { get; private init; }
         public string Player { get; private init; } = "settle";
         public bool Timeline { get; private init; }
+        public int? DebaseAt { get; private init; }
+        public int Quality { get; private init; } = 50;
+        public int? ShockAt { get; private init; }
         public bool Help { get; private init; }
 
         public static Options Parse(string[] args)
@@ -193,6 +224,9 @@ public static class Program
                     "--content" => options with { ContentDir = Value() },
                     "--player" => options with { Player = PlayerName(Value()) },
                     "--timeline" => options with { Timeline = true },
+                    "--debase-at" => options with { DebaseAt = PositiveInt(Value(), "--debase-at") },
+                    "--quality" => options with { Quality = PositiveInt(Value(), "--quality") },
+                    "--shock-at" => options with { ShockAt = PositiveInt(Value(), "--shock-at") },
                     "--help" or "-h" => options with { Help = true },
                     _ => throw new ArgumentException($"Unknown option '{args[i]}'. Use --help."),
                 };

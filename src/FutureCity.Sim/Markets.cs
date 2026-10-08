@@ -10,7 +10,8 @@ namespace FutureCity.Sim;
 /// of everyone's goods there.
 /// <para>
 /// Before coins, traders barter: a trade needs a double coincidence of wants (each side has what the other wants),
-/// at a ratio between both sides' values. With coins, each good is sold in a call auction: bids from the highest,
+/// at a ratio between both sides' values. Failing that, a seller accepts the good most people want that day (often
+/// grain) because it can pass it on: the beginning of commodity money. With coins, each good is sold in a call auction: bids from the highest,
 /// asks from the lowest, trading while a bid covers an ask, all at one price halfway between the last pair. Nobody
 /// sets prices: every trader keeps beliefs about what goods are worth and adjusts them to what happened.
 /// </para>
@@ -94,6 +95,7 @@ public static class Markets
         state.Commission = 0;
         if (Economy.HasMoney(world, player))
         {
+            state.Medium = -1; // coins now
             for (int g = 0; g < world.Content.Goods.Count; g++) Auction(world, market, traders, plans, g);
         }
         else
@@ -114,9 +116,17 @@ public static class Markets
         var offers = traders.ToDictionary(t => t.Id, t => Offers(t, plans[t.Id]));
         var wants = traders.ToDictionary(t => t.Id, t => (int[])plans[t.Id].Wanted.Clone());
         var sold = traders.ToDictionary(t => t.Id, _ => new bool[goods]);
+        // Barter teaches little about prices: values move toward the ratios goods were swapped at, and a seller whose
+        // goods were wanted but not taken asks less. A want nobody could meet says nothing about worth.
+        var wantedByAnyone = new bool[goods];
+        foreach (var t in traders)
+        {
+            for (int g = 0; g < goods; g++) wantedByAnyone[g] |= wants[t.Id][g] > 0;
+        }
         state.BarterWants = 0;
         state.BarterMatched = 0;
         Array.Clear(state.Volume);
+        state.Medium = MostWanted(traders, wants);
 
         foreach (var a in traders)
         {
@@ -129,12 +139,18 @@ public static class Markets
                 {
                     if (b.Id == a.Id || offers[b.Id][g] <= 0 || wants[a.Id][g] <= 0) continue;
                     int x = Counterpart(offers[a.Id], wants[b.Id], g);
+                    bool medium = false;
+                    if (x < 0 && state.Medium >= 0 && state.Medium != g && offers[a.Id][state.Medium] > 0)
+                    {
+                        x = state.Medium; // b takes what everybody wants, to pass on later
+                        medium = true;
+                    }
                     if (x < 0) continue;
                     int valueG = Math.Max(1, (Belief(a, g) + Belief(b, g)) / 2);
                     int valueX = Math.Max(1, (Belief(a, x) + Belief(b, x)) / 2);
                     int qg = Math.Min(wants[a.Id][g], offers[b.Id][g]);
                     int qx = (int)(((long)qg * valueG + valueX - 1) / valueX);
-                    int maxX = Math.Min(offers[a.Id][x], wants[b.Id][x]);
+                    int maxX = medium ? offers[a.Id][x] : Math.Min(offers[a.Id][x], wants[b.Id][x]);
                     if (qx > maxX)
                     {
                         qx = maxX;
@@ -145,7 +161,7 @@ public static class Markets
                     Move(a, b, x, qx); // a gives x
                     Move(b, a, g, qg); // b gives g
                     offers[a.Id][x] -= qx;
-                    wants[b.Id][x] -= qx;
+                    wants[b.Id][x] = Math.Max(0, wants[b.Id][x] - qx);
                     offers[b.Id][g] -= qg;
                     wants[a.Id][g] -= qg;
                     sold[a.Id][x] = sold[b.Id][g] = true;
@@ -159,16 +175,30 @@ public static class Markets
                     if (Civics.TryGet(world, player, out var civ)) civ.GetComponent<Civilization>().Trades++;
                 }
                 if (matched) state.BarterMatched++;
-                else Step(world, a, g, up: true); // nobody had it to swap: it is worth more than thought
             }
         }
         foreach (var t in traders)
         {
             for (int g = 0; g < goods; g++)
             {
-                if (offers[t.Id][g] > 0 && !sold[t.Id][g]) Step(world, t, g, up: false);
+                if (offers[t.Id][g] > 0 && !sold[t.Id][g] && wantedByAnyone[g]) Step(world, t, g, up: false);
             }
         }
+    }
+
+    // The good wanted by the most traders today (ties: the lowest index), or -1.
+    private static int MostWanted(List<Entity> traders, Dictionary<int, int[]> wants)
+    {
+        int best = -1, bestCount = 0;
+        int goods = wants.Count == 0 ? 0 : wants.Values.First().Length;
+        for (int g = 0; g < goods; g++)
+        {
+            int count = traders.Count(t => wants[t.Id][g] > 0);
+            if (count <= bestCount) continue;
+            best = g;
+            bestCount = count;
+        }
+        return best;
     }
 
     // What a trader actually offers at the market: its surplus, as far as it has carried it there.
@@ -253,13 +283,15 @@ public static class Markets
                 if (!Traders.IsMerchant(t) && Traders.PlayerOf(t) == player) Pull(world, t, good, price);
             }
         }
+        // A buyer outbid (or facing asks above its bid) raises its belief; a seller undercut (or facing bids below
+        // its ask) lowers it. With nobody on the other side there is nothing to learn.
         foreach (var bid in bids)
         {
-            if (bought.GetValueOrDefault(bid.Trader.Id) == 0) Step(world, bid.Trader, good, up: true);
+            if (asks.Count > 0 && bought.GetValueOrDefault(bid.Trader.Id) == 0) Step(world, bid.Trader, good, up: true);
         }
         foreach (var ask in asks)
         {
-            if (soldBy.GetValueOrDefault(ask.Trader.Id) == 0) Step(world, ask.Trader, good, up: false);
+            if (bids.Count > 0 && soldBy.GetValueOrDefault(ask.Trader.Id) == 0) Step(world, ask.Trader, good, up: false);
         }
     }
 
@@ -359,7 +391,7 @@ public static class Markets
         int gap = price - belief;
         int move = gap * world.Content.Economy.Market.BeliefPullPercent / 100;
         if (move == 0) move = Math.Sign(gap);
-        belief = Math.Max(1, belief + move);
+        belief = Math.Clamp(belief + move, 1, MaxBelief(world, good));
     }
 
     // A buyer who got nothing thinks the good is worth more; a seller who sold nothing thinks it is worth less.
@@ -368,8 +400,12 @@ public static class Markets
         if (Traders.IsMerchant(trader)) return;
         ref int belief = ref trader.GetComponent<Trader>().Beliefs[good];
         int step = Math.Max(1, belief * world.Content.Economy.Market.BeliefStepPercent / 100);
-        belief = Math.Max(1, up ? belief + step : belief - step);
+        belief = Math.Clamp(up ? belief + step : belief - step, 1, MaxBelief(world, good));
     }
+
+    // Beliefs stay within a wide band around the starting value (wide enough for heavy inflation).
+    private static int MaxBelief(World world, int good) =>
+        world.Content.Goods[good].Value * world.Content.Economy.Market.MaxPriceMultiple;
 
     private static void RecordDay(World world, Entity market)
     {
@@ -424,6 +460,7 @@ public static class Markets
             CpiHistory = new int[length],
             MoneyHistory = new int[length],
             BasePrice = new int[goods],
+            Medium = -1,
         };
     }
 

@@ -55,6 +55,7 @@ public sealed class Demand
         for (int g = 0; g < byGood.Length; g++)
         {
             int wanted = content.Goods[g].TargetPerCapita * population + sitesNeed[g];
+            if (g == content.SilverGood && Economy.HasHouseholds(world, player)) wanted += content.Economy.Treasury.SilverTarget;
             byGood[g] = Math.Max(0, wanted - store[g]);
             if (content.Goods[g].Nutrition > 0) byGood[g] = Math.Max(byGood[g], food);
         }

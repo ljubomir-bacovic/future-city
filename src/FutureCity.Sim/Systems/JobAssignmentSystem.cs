@@ -115,6 +115,12 @@ public sealed partial class JobAssignmentSystem : ISimSystem
         }
         if (working >= type.Def.Workers) return 0;
 
+        if (type.Def.Mint is { } mint)
+        {
+            int silver = world.Content.SilverGood;
+            bool work = demand.Store[silver] + building.GetComponent<Inventory>().Amounts[silver] >= mint.Silver;
+            return work ? rules.BuildPriority / (1 + working) : 0;
+        }
         if (type.Def.Research > 0)
         {
             var facts = demand.Facts;

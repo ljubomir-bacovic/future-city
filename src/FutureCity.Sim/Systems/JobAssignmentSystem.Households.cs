@@ -24,6 +24,7 @@ public sealed partial class JobAssignmentSystem
         public required int[] Crafters;                 // by building kind
         public required List<Entity> Buildings;
         public required bool?[] Gatherable;
+        public required int[] Gatherers;                // private gatherers by good
         public required TilePosition Camp;
     }
 
@@ -50,6 +51,7 @@ public sealed partial class JobAssignmentSystem
             Buildings = World.InIdOrder(world.Store.Query<Building, Owner>())
                 .Where(b => b.GetComponent<Owner>().Player == player).ToList(),
             Gatherable = new bool?[content.Goods.Count],
+            Gatherers = new int[content.Goods.Count],
             Camp = camp.GetComponent<TilePosition>(),
         };
         foreach (var unit in units)
@@ -57,6 +59,8 @@ public sealed partial class JobAssignmentSystem
             var order = unit.GetComponent<Order>();
             if (order.Kind is OrderKind.Work or OrderKind.Build)
                 ctx.Workers[order.Target] = ctx.Workers.GetValueOrDefault(order.Target) + 1;
+            else if (!order.Public && GoodOf(world, order) is int good and >= 0)
+                ctx.Gatherers[good]++;
         }
 
         // Private incomes set the going wage; the treasury pays public workers that plus a premium.
@@ -133,9 +137,9 @@ public sealed partial class JobAssignmentSystem
                 Economy.Record(world, ctx.Player, LedgerEntry.Wages, wage);
             }
         }
-        int capacity = ctx.Money
-            ? treasury.Coins / Math.Max(1, wage * rules.ReserveChecks)
-            : Stores.Meals(world, ctx.Player) / rules.RationMeals;
+        // The treasury can always feed some workers from the public stores; with coins it can pay more.
+        int capacity = Stores.Meals(world, ctx.Player) / rules.RationMeals
+                       + (ctx.Money ? treasury.Coins / Math.Max(1, wage * rules.ReserveChecks) : 0);
         int working = units.Count(u => IsPublicWorker(world, u));
         for (int k = units.Count - 1; k >= 0 && working > capacity; k--)
         {
@@ -182,6 +186,8 @@ public sealed partial class JobAssignmentSystem
         for (int good = 0; good < world.Content.Goods.Count; good++)
         {
             int score = demand.ForGood(good) / (1 + gatherers[good]);
+            // The crown's mines are worked by public workers only, so the treasury always keeps one going.
+            if (world.Content.Regalia[good] && demand.ForGood(good) > 0 && gatherers[good] == 0) score = int.MaxValue / 2;
             if (score <= bestScore || !(ctx.Gatherable[good] ??= TryFindSource(world, good, ctx.Camp, out _, out _))) continue;
             bestScore = score;
             bestGood = good;
@@ -214,6 +220,7 @@ public sealed partial class JobAssignmentSystem
         if (good >= 0)
         {
             if (!StartGathering(world, unit, good, home.GetComponent<TilePosition>())) return false;
+            ctx.Gatherers[good]++;
         }
         else
         {
@@ -233,9 +240,12 @@ public sealed partial class JobAssignmentSystem
         var plan = ctx.Plans[home.Id];
         int best = 0, bestGood = -1;
         Entity bestBuilding = default;
+        var currentGood = GoodOf(world, unit.GetComponent<Order>());
         for (int good = 0; good < content.Goods.Count; good++)
         {
-            int income = GatherIncome(world, ctx, home, plan, good);
+            if (content.Regalia[good]) continue;
+            int others = ctx.Gatherers[good] - (currentGood == good ? 1 : 0);
+            int income = Crowded(world, GatherIncome(world, ctx, home, plan, good), others);
             if (income <= best || !(ctx.Gatherable[good] ??= TryFindSource(world, good, ctx.Camp, out _, out _))) continue;
             best = income;
             bestGood = good;
@@ -248,7 +258,7 @@ public sealed partial class JobAssignmentSystem
             bool here = current.Kind == OrderKind.Work && current.Target == building.Id;
             int working = ctx.Workers.GetValueOrDefault(building.Id) - (here ? 1 : 0);
             if (working >= type.Def.Workers || (!here && !GuildAdmits(world, ctx, type.Index))) continue;
-            int income = WorkIncome(world, ctx, home, plan, building, working);
+            int income = Crowded(world, WorkIncome(world, ctx, home, plan, building, working), ctx.Crafters[type.Index] - (here ? 1 : 0));
             if (income <= best) continue;
             best = income;
             bestGood = -1;
@@ -256,6 +266,14 @@ public sealed partial class JobAssignmentSystem
         }
         return (best, bestGood, bestBuilding);
     }
+
+    // Whether a good is on the market now.
+    private static bool CanBuy(HouseholdContext ctx, int good) =>
+        ctx.HasMarket && ctx.Market.GetComponent<Inventory>().Amounts[good] > 0;
+
+    // More people doing the same work means sources further away and lower prices: expected income falls.
+    private static int Crowded(World world, int income, int others) =>
+        income * 100 / (100 + world.Content.Economy.Wages.CrowdingPercent * Math.Max(0, others));
 
     // Under guilds a craft takes only so many people a year.
     private static bool GuildAdmits(World world, HouseholdContext ctx, int kind)
@@ -270,9 +288,16 @@ public sealed partial class JobAssignmentSystem
         var plan = ctx.Plans.GetValueOrDefault(home.Id);
         if (plan == null) return 0;
         if (order.Kind is OrderKind.Gather or OrderKind.Hunt)
-            return GoodOf(world, order) is int good and >= 0 ? GatherIncome(world, ctx, home, plan, good) : 0;
+        {
+            return GoodOf(world, order) is int good and >= 0
+                ? Crowded(world, GatherIncome(world, ctx, home, plan, good), ctx.Gatherers[good] - 1)
+                : 0;
+        }
         if (order.Kind == OrderKind.Work && world.TryGetEntity(order.Target, out var building) && building.HasComponent<Building>())
-            return WorkIncome(world, ctx, home, plan, building, Math.Max(0, ctx.Workers.GetValueOrDefault(building.Id) - 1));
+        {
+            int income = WorkIncome(world, ctx, home, plan, building, Math.Max(0, ctx.Workers.GetValueOrDefault(building.Id) - 1));
+            return Crowded(world, income, ctx.Crafters[building.GetComponent<Building>().Kind] - 1);
+        }
         return 0;
     }
 
@@ -280,7 +305,7 @@ public sealed partial class JobAssignmentSystem
     {
         int ticks = world.Content.GatherTicksPerUnit(good);
         if (ticks == 0) return 0;
-        int value = Traders.Value(world, home, plan, good, ctx.HasMarket);
+        int value = Traders.Value(world, home, plan, good, ctx.HasMarket, CanBuy(ctx, good));
         return value * world.Content.Economy.Wages.TravelPercent / ticks;
     }
 
@@ -299,7 +324,7 @@ public sealed partial class JobAssignmentSystem
             if (!work) return 0;
             long units = (long)field.Yield * state.Fertility / 100;
             long ticks = field.SowWork + (long)field.Yield * field.HarvestTicksPerUnit;
-            return (int)(Traders.Value(world, home, plan, type.FieldGood, ctx.HasMarket) * units * travel / ticks);
+            return (int)(Traders.Value(world, home, plan, type.FieldGood, ctx.HasMarket, CanBuy(ctx, type.FieldGood)) * units * travel / ticks);
         }
         if (type.Def.Recipe is { } recipe)
         {
@@ -308,7 +333,7 @@ public sealed partial class JobAssignmentSystem
             long added = 0;
             for (int g = 0; g < beliefs.Length; g++)
             {
-                added += (long)type.Outputs[g] * Traders.Value(world, home, plan, g, ctx.HasMarket) * (100 + bonus) / 100;
+                added += (long)type.Outputs[g] * Traders.Value(world, home, plan, g, ctx.HasMarket, CanBuy(ctx, g)) * (100 + bonus) / 100;
                 added -= (long)type.Inputs[g] * beliefs[g];
             }
             return (int)Math.Max(0, added * travel / recipe.WorkTicks);
@@ -363,6 +388,7 @@ public sealed partial class JobAssignmentSystem
                 ctx.Workers[old.Id] = ctx.Workers.GetValueOrDefault(old.Id) - 1;
                 if (old.HasComponent<Building>()) ctx.Crafters[old.GetComponent<Building>().Kind]--;
             }
+            if (GoodOf(world, order) is int was and >= 0) ctx.Gatherers[was]--;
             if (StartPrivate(world, ctx, unit, home, good, building)) switches++;
         }
     }
