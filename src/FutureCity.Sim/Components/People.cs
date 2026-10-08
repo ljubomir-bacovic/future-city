@@ -51,6 +51,14 @@ public enum OrderKind
     Work,
     /// <summary>Take goods to the marketplace to sell and bring home what was bought.</summary>
     Trade,
+    /// <summary>A new soldier collects their equipment from a public store, then goes to the rally point.</summary>
+    Arm,
+    /// <summary>Chase and fight one enemy unit or building.</summary>
+    Attack,
+    /// <summary>Walk to a tile, fighting every enemy met on the way.</summary>
+    AttackMove,
+    /// <summary>Carry goods off from an enemy store or ruins to the soldier's own public stores.</summary>
+    Loot,
 }
 
 /// <summary>Progress within an order.</summary>
@@ -85,6 +93,10 @@ public enum TargetType
     Tile,
     /// <summary>A building.</summary>
     Building,
+    /// <summary>A person: a soldier, citizen or caravan.</summary>
+    Unit,
+    /// <summary>A pile of loot.</summary>
+    Loot,
 }
 
 /// <summary>A citizen's current order.</summary>

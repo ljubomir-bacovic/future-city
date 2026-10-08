@@ -57,6 +57,20 @@ public struct Civilization : IComponent
     public long NextMerchantTick;
     /// <summary>Under guilds: most workers each workshop kind may have this year, by building kind.</summary>
     public int[] GuildCap;
+    /// <summary>Whether the player set a rally point, where new soldiers gather.</summary>
+    public bool HasRally;
+    /// <summary>Rally point column.</summary>
+    public int RallyX;
+    /// <summary>Rally point row.</summary>
+    public int RallyY;
+    /// <summary>People killed in battle so far (soldiers and civilians).</summary>
+    public int BattleDeaths;
+    /// <summary>Buildings lost to enemies so far.</summary>
+    public int BuildingsLost;
+    /// <summary>Units of goods soldiers carried home as loot so far.</summary>
+    public int Looted;
+    /// <summary>Units of goods enemies carried off from this civilization so far.</summary>
+    public int Plundered;
 }
 
 /// <summary>Lines of the treasury's accounts. All in coins except <see cref="Tribute"/>, in units of goods.</summary>
@@ -76,4 +90,8 @@ public enum LedgerEntry
     Wages,
     /// <summary>Goods bought at the market.</summary>
     Purchases,
+    /// <summary>Wages paid to paid soldiers.</summary>
+    Soldiers,
+    /// <summary>Goods carried home as loot (units).</summary>
+    Loot,
 }

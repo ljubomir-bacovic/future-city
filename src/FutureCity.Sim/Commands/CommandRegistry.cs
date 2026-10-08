@@ -34,7 +34,10 @@ public sealed class CommandRegistry
             .Register<SetResearchFocus>("setResearchFocus")
             .Register<EstablishInstitution>("establishInstitution")
             .Register<SetTaxes>("setTaxes")
-            .Register<SetCoinQuality>("setCoinQuality");
+            .Register<SetCoinQuality>("setCoinQuality")
+            .Register<Recruit>("recruit")
+            .Register<Disband>("disband")
+            .Register<SetRallyPoint>("setRallyPoint");
     }
 
     /// <summary>Registers a command type under a stable name.</summary>

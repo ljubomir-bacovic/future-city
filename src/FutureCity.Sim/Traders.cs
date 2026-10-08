@@ -162,7 +162,8 @@ public static class Traders
         return rules.FoodTargetPerMember * people.Count + (room ? content.Citizens.Growth.BirthFoodCost : 0);
     }
 
-    // The treasury keeps a food reserve, materials per person and for building sites, and silver for the mint.
+    // The treasury keeps a food reserve, materials per person and for building sites, equipment for new soldiers, and
+    // silver for the mint.
     private static int TreasuryTargets(World world, Entity civ, int[] target)
     {
         var content = world.Content;
@@ -176,6 +177,8 @@ public static class Traders
             var missing = Buildings.MissingMaterials(world, site);
             for (int g = 0; g < target.Length; g++) target[g] += missing[g];
         }
+        var equipment = Military.EquipmentWanted(world, player);
+        for (int g = 0; g < target.Length; g++) target[g] += equipment[g];
         target[content.SilverGood] += content.Economy.Treasury.SilverTarget;
         return content.Economy.Treasury.FoodTargetPerCapita * population;
     }

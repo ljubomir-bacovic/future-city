@@ -54,6 +54,7 @@ public sealed class SettlerBot
         {
             var order = unit.GetComponent<Order>();
             if (unit.GetComponent<Owner>().Player != Player || order.Auto || !Bands.IsAdult(world, unit.GetComponent<Citizen>())
+                || unit.HasComponent<Soldier>()
                 || order.Kind is not (OrderKind.Gather or OrderKind.Hunt or OrderKind.Build or OrderKind.Work))
                 continue;
             var pos = unit.GetComponent<TilePosition>();
@@ -129,7 +130,8 @@ public sealed class SettlerBot
         var world = sim.World;
         var content = world.Content;
         var adults = World.InIdOrder(world.Store.Query<Citizen, Order, Owner>())
-            .Where(u => u.GetComponent<Owner>().Player == Player && Bands.IsAdult(world, u.GetComponent<Citizen>()))
+            .Where(u => u.GetComponent<Owner>().Player == Player && Bands.IsAdult(world, u.GetComponent<Citizen>())
+                        && !u.HasComponent<Soldier>())
             .ToList();
         bool hungry = facts.Food < facts.Population * 15;
         int minFood = hungry ? (adults.Count * 2 + 2) / 3 : (facts.Population + 3) / 4;

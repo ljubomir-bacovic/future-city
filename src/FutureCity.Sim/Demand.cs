@@ -5,7 +5,7 @@ namespace FutureCity.Sim;
 
 /// <summary>
 /// How short the public stores are of each good: the stock wanted per person minus what the stores hold, plus building
-/// materials that sites still wait for. Food goods share one demand, counted in meals. Drives the chief's jobs.
+/// materials that sites and equipment that new soldiers still wait for. Food goods share one demand, counted in meals. Drives the chief's jobs.
 /// </summary>
 public sealed class Demand
 {
@@ -31,7 +31,7 @@ public sealed class Demand
     /// <summary>The facts the demand was computed from.</summary>
     public Facts Facts { get; }
 
-    /// <summary>Units of a good that construction sites still wait for.</summary>
+    /// <summary>Units of a good that construction sites and new soldiers still wait for.</summary>
     public int SitesNeed(int good) => _sitesNeed[good];
 
     /// <summary>Units short of a good (for food goods, the meals short of the food target, if that is larger).</summary>
@@ -56,6 +56,8 @@ public sealed class Demand
             var missing = Buildings.MissingMaterials(world, site);
             for (int g = 0; g < missing.Length; g++) sitesNeed[g] += missing[g];
         }
+        var equipment = Military.EquipmentWanted(world, player);
+        for (int g = 0; g < equipment.Length; g++) sitesNeed[g] += equipment[g];
 
         var byGood = new int[content.Goods.Count];
         for (int g = 0; g < byGood.Length; g++)

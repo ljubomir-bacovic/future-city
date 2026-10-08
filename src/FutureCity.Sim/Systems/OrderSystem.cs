@@ -49,6 +49,9 @@ public sealed partial class OrderSystem : ISimSystem
                 case OrderKind.Trade:
                     UpdateTrade(world, unit);
                     break;
+                case OrderKind.Arm:
+                    UpdateArm(world, unit);
+                    break;
             }
         }
     }

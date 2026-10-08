@@ -13,7 +13,7 @@ public sealed record MoveUnits(int[] Units, int X, int Y) : Command
     /// <inheritdoc />
     public override void Execute(World world)
     {
-        var units = UnitOrders.Select(world, Player, Units);
+        var units = UnitOrders.Select(world, Player, Units, Who.Everyone);
         int x = Math.Clamp(X, 0, world.Map.Width - 1), y = Math.Clamp(Y, 0, world.Map.Height - 1);
         var spots = UnitOrders.SpreadAround(world, x, y, units.Count);
         for (int i = 0; i < units.Count; i++)
@@ -87,7 +87,7 @@ public sealed record ReturnToCamp(int[] Units) : Command
     /// <inheritdoc />
     public override void Execute(World world)
     {
-        foreach (var unit in UnitOrders.Select(world, Player, Units))
+        foreach (var unit in UnitOrders.Select(world, Player, Units, Who.Everyone))
             UnitOrders.Assign(unit, OrderKind.ReturnToCamp);
     }
 }
@@ -127,11 +127,25 @@ public sealed record AssignWork(int[] Units, int Target) : Command
     }
 }
 
+/// <summary>Which of the selected people an order applies to.</summary>
+internal enum Who
+{
+    /// <summary>Civilians only: soldiers do not gather, build or work.</summary>
+    Civilians,
+    /// <summary>Soldiers only.</summary>
+    Soldiers,
+    /// <summary>Everyone.</summary>
+    Everyone,
+}
+
 /// <summary>Helpers shared by the unit order commands (and automatic job assignment).</summary>
 internal static class UnitOrders
 {
-    /// <summary>The listed units that exist, belong to <paramref name="player"/> and are adults, in id order without duplicates.</summary>
-    public static List<Entity> Select(World world, int player, int[]? ids)
+    /// <summary>
+    /// The listed units that exist, belong to <paramref name="player"/>, are adults and are among <paramref name="who"/>,
+    /// in id order without duplicates.
+    /// </summary>
+    public static List<Entity> Select(World world, int player, int[]? ids, Who who = Who.Civilians)
     {
         var result = new List<Entity>();
         if (ids == null) return result;
@@ -140,7 +154,8 @@ internal static class UnitOrders
             if (!world.TryGetEntity(id, out var unit)
                 || !unit.TryGetComponent<Owner>(out var owner) || owner.Player != player
                 || !unit.TryGetComponent<Citizen>(out var citizen) || !Bands.IsAdult(world, citizen)
-                || !unit.HasComponent<Order>() || !unit.HasComponent<Mover>())
+                || !unit.HasComponent<Order>() || !unit.HasComponent<Mover>()
+                || (who == Who.Civilians && unit.HasComponent<Soldier>()) || (who == Who.Soldiers && !unit.HasComponent<Soldier>()))
                 continue;
             result.Add(unit);
         }
