@@ -54,15 +54,24 @@ Open `src/FutureCity.Game/project.godot` in the Godot editor and press **F5**, o
 <path-to-godot> --path src/FutureCity.Game
 ```
 
-Controls: **Space** pause, **1–4** speed, **WASD**/arrows/screen edge/middle-drag to pan, mouse wheel to zoom, **F5** quick save, **F9** quick load. The game also autosaves every 2 minutes of game time.
+Controls:
+
+- **Left-click** a villager to select, **Shift**-click to add, **drag** a box to select several, **Esc** to clear.
+- **Right-click** with villagers selected: on a deer to hunt, on a berry bush or carcass to gather, on the camp to return, anywhere else to move.
+- **Space** pause, **1–4** speed, **WASD**/arrows/screen edge/middle-drag to pan, mouse wheel to zoom.
+- **F5** quick save, **F9** quick load. The game also autosaves every 2 minutes of game time.
+
+Launch options for testing go after `--`: `--seed=N`, `--map=small|medium|large`, `--zoom=F`, `--autoplay` (a stand-in computer player runs the band), `--skip=N` (simulate N ticks first), `--select-all`, `--screenshot=PATH --frames=N`.
 
 ### Headless simulation
 
-Run a full game without graphics, useful for balancing and testing:
+Run a full game without graphics, useful for balancing and testing. By default a simple stand-in player forages for the band (`--player forage`); the output shows population, food, births, deaths, deer and berries:
 
 ```bash
 dotnet run --project src/FutureCity.Headless -- --seed 42 --ticks 12000
+dotnet run --project src/FutureCity.Headless -- --seed 42 --ticks 3000 --timeline   # band state every game minute
 dotnet run --project src/FutureCity.Headless -- --games 20 --map medium   # many seeds
+dotnet run --project src/FutureCity.Headless -- --player idle --ticks 3000   # no orders: watch a famine
 dotnet run --project src/FutureCity.Headless -- --help
 ```
 

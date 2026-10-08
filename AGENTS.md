@@ -52,6 +52,8 @@ Run `dotnet build` and `dotnet test` after every change. Work is not done while 
    - Create entities only with `World.CreateEntity()`; it hands out sequential ids that are never reused and survive save/load. Never call `Store.CreateEntity()`.
    - ECS storage order changes after loading a save. If a system's result depends on iteration order (it uses the RNG, creates/deletes entities, or resolves conflicts between entities), iterate with `World.InIdOrder(query)`.
    - Components are structs implementing `IComponent` with public integer/enum/bool fields and a stable `[ComponentKey("...")]`.
+   - Use the game's own components (`TilePosition`, …). Friflo ships built-in float components such as `Position`; never use them in the simulation.
+   - `World.Events` reports what happened during the last tick (births, deaths, kills) for the UI and statistics. Events are output only and must never feed back into rules.
 6. **Data-driven content.** Gameplay numbers and definitions live in `FutureCity.Content/Data/*.json` (embedded in the assembly), not in code. Definition types and validation live in `FutureCity.Sim/Content`. Every tech, institution and era has a precondition expression evaluated by the emergence engine.
 7. **Save/load.** `SaveGame` writes the full state as canonical JSON; `SaveGame.StateHash` is the SHA-256 of that state. Any new world field or component must be saved and covered by the round-trip test. New commands must be registered in `CommandRegistry.CreateDefault()` under a name that never changes.
 
