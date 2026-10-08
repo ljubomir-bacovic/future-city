@@ -1,0 +1,19 @@
+# CodeRabbit settings. See https://docs.coderabbit.ai/reference/configuration
+language: en-US
+reviews:
+  profile: chill
+  pre_merge_checks:
+    docstrings:
+      # The compiler already requires XML docs on every public FutureCity.Sim API
+      # (GenerateDocumentationFile + TreatWarningsAsErrors), which is the project rule in AGENTS.md.
+      # A percentage over all functions, including private helpers, Godot scripts and tests, adds noise.
+      mode: off
+  path_instructions:
+    - path: "src/FutureCity.Content/Data/*.json"
+      instructions: >-
+        Content files are JSON with comments and trailing commas (read with JsonCommentHandling.Skip).
+        Check that gameplay numbers are plausible and consistent with the validation in ContentLoader.
+    - path: "src/FutureCity.Sim/**/*.cs"
+      instructions: >-
+        Must stay deterministic: no float/double in state or logic, no System.Random, no wall-clock time,
+        no Godot references, and iteration that affects results must use World.InIdOrder or another stable order.
