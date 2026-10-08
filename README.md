@@ -37,7 +37,7 @@ Later versions extend the game through the Renaissance, industrial and modern er
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) and the .NET 8 runtime (projects target `net8.0`)
 - [Godot 4.7.2 .NET build](https://godotengine.org/download)
 - VS Code with the C# Dev Kit extension (recommended)
-- Optional: set the `GODOT` environment variable to the Godot executable so the VS Code **Play** launch configuration works
+- VS Code **Play** uses the `godotTools.editorPath.godot4` setting in `.vscode/settings.json`; change it if Godot is installed elsewhere. Command-line examples use a `GODOT` environment variable pointing to the same executable.
 
 ### Build and run
 

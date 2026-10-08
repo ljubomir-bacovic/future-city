@@ -1,6 +1,5 @@
 {
-  // Set the GODOT environment variable to the Godot .NET editor executable, e.g.
-  // C:\Godot_v4.7.2-stable_mono_win64\Godot_v4.7.2-stable_mono_win64\Godot_v4.7.2-stable_mono_win64.exe
+  // Godot path comes from the godotTools.editorPath.godot4 setting (.vscode/settings.json).
   "version": "0.2.0",
   "configurations": [
     {
@@ -8,7 +7,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${env:GODOT}",
+      "program": "${config:godotTools.editorPath.godot4}",
       "args": ["--path", "${workspaceFolder}/src/FutureCity.Game"],
       "cwd": "${workspaceFolder}/src/FutureCity.Game",
       "console": "internalConsole",
@@ -19,7 +18,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${env:GODOT}",
+      "program": "${config:godotTools.editorPath.godot4}",
       "args": ["--path", "${workspaceFolder}/src/FutureCity.Game", "--editor"],
       "cwd": "${workspaceFolder}/src/FutureCity.Game",
       "console": "internalConsole",

@@ -1,5 +1,7 @@
 {
   "dotnet.defaultSolution": "FutureCity.sln",
+  // Godot .NET editor executable; used by the Godot Tools extension and the Play/Godot editor launch configs.
+  "godotTools.editorPath.godot4": "C:\\Godot_v4.7.2-stable_mono_win64\\Godot_v4.7.2-stable_mono_win64\\Godot_v4.7.2-stable_mono_win64.exe",
   "files.exclude": {
     "**/.godot": true,
     "**/bin": true,
