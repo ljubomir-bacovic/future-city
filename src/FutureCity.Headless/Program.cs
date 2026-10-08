@@ -225,7 +225,7 @@ public static class Program
                     "--player" => options with { Player = PlayerName(Value()) },
                     "--timeline" => options with { Timeline = true },
                     "--debase-at" => options with { DebaseAt = PositiveInt(Value(), "--debase-at") },
-                    "--quality" => options with { Quality = PositiveInt(Value(), "--quality") },
+                    "--quality" => options with { Quality = Percent(Value(), "--quality") },
                     "--shock-at" => options with { ShockAt = PositiveInt(Value(), "--shock-at") },
                     "--help" or "-h" => options with { Help = true },
                     _ => throw new ArgumentException($"Unknown option '{args[i]}'. Use --help."),
@@ -236,6 +236,9 @@ public static class Program
 
         private static string PlayerName(string value) =>
             value is "settle" or "forage" or "idle" ? value : throw new ArgumentException("--player must be 'settle', 'forage' or 'idle'.");
+
+        private static int Percent(string value, string name) =>
+            PositiveInt(value, name) is var n and >= 1 and <= 100 ? n : throw new ArgumentException($"{name} must be a percentage from 1 to 100.");
 
         private static int PositiveInt(string value, string name) =>
             int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int n) && n >= 0

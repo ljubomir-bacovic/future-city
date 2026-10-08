@@ -74,6 +74,22 @@ public class SocietyTests
     }
 
     [Fact]
+    public void A_famine_this_year_lowers_happiness_at_once()
+    {
+        int HappinessAfter(int deathsThisYear)
+        {
+            var sim = GameSupport.Plain();
+            GameSupport.Camp(sim, 10, 10, food: 10_000);
+            GameSupport.Economy(sim);
+            var unit = GameSupport.Adult(sim);
+            GameSupport.Civ(sim).GetComponent<Civilization>().DeathsThisYear = deathsThisYear;
+            GameSupport.Run(sim, sim.World.Content.Economy.Happiness.CheckIntervalTicks * 5);
+            return unit.GetComponent<Citizen>().Happiness;
+        }
+        Assert.True(HappinessAfter(5) < HappinessAfter(0));
+    }
+
+    [Fact]
     public void Miserable_people_fall_into_unrest()
     {
         var sim = GameSupport.Plain();

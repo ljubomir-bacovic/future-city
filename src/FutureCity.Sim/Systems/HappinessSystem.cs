@@ -32,7 +32,7 @@ public sealed class HappinessSystem : ISimSystem
         long average = wealth.Count == 0 ? 0 : wealth.Values.Sum() / wealth.Count;
         int shared = rules.Base
                      - (civ.TributePercent + (Economy.HasMoney(world, player) ? civ.MarketTaxPercent : 0)) * rules.TaxPercent / 100
-                     + Math.Max(rules.MaxDeathPenalty, civ.DeathsLastYear * rules.DeathPenalty);
+                     + Math.Max(rules.MaxDeathPenalty, (civ.DeathsLastYear + civ.DeathsThisYear) * rules.DeathPenalty);
         var citizens = world.Content.Citizens;
         long sum = 0;
         int people = 0;

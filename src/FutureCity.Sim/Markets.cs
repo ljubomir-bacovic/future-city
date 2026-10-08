@@ -291,7 +291,7 @@ public static class Markets
         var rules = world.Content.Economy.Market;
         int player = market.GetComponent<Owner>().Player;
         Civics.TryGet(world, player, out var civEntity);
-        var traders = TradersAt(world, market);
+        var traders = TraderFamiliesAt(world, market);
         ref var state = ref market.GetComponent<Market>();
 
         int i = 0, j = 0;
@@ -317,7 +317,7 @@ public static class Markets
                 sellerTrader.Coins += value - tax - tariff - commission;
                 ref var treasury = ref civEntity.GetComponent<Trader>();
                 treasury.Coins += tax + tariff;
-                PayCommission(world, traders, commission);
+                PayCommission(traders, commission);
                 state.Commission += commission;
                 state.Volume[good] += q;
                 if (buyer.TryGetComponent<Merchant>(out _)) buyer.GetComponent<Merchant>().Bought[good] += q;
@@ -334,29 +334,28 @@ public static class Markets
         }
     }
 
-    // Market traders working at the marketplace now.
-    private static List<Entity> TradersAt(World world, Entity market)
+    // The families of the market traders working at the marketplace now, one entry per trader. A trader living at
+    // the camp has no family to keep a commission, so none is charged for them and no coins are lost.
+    private static List<Entity> TraderFamiliesAt(World world, Entity market)
     {
-        var traders = new List<Entity>();
+        var families = new List<Entity>();
         foreach (var unit in World.InIdOrder(world.Store.Query<Citizen, Order>()))
         {
             var order = unit.GetComponent<Order>();
-            if (order.Kind == OrderKind.Work && order.Target == market.Id && order.Stage == OrderStage.Work)
-                traders.Add(unit);
+            if (order.Kind == OrderKind.Work && order.Target == market.Id && order.Stage == OrderStage.Work
+                && Households.TryGetHome(world, unit, out var home))
+                families.Add(home);
         }
-        return traders;
+        return families;
     }
 
-    // Splits a commission among the market traders' families (a trader living at the camp keeps nothing).
-    private static void PayCommission(World world, List<Entity> traders, int commission)
+    // Splits a commission among the market traders' families.
+    private static void PayCommission(List<Entity> families, int commission)
     {
-        if (traders.Count == 0 || commission <= 0) return;
-        int share = commission / traders.Count, rest = commission % traders.Count;
-        for (int k = 0; k < traders.Count; k++)
-        {
-            if (Households.TryGetHome(world, traders[k], out var home))
-                home.GetComponent<Trader>().Coins += share + (k < rest ? 1 : 0);
-        }
+        if (families.Count == 0 || commission <= 0) return;
+        int share = commission / families.Count, rest = commission % families.Count;
+        for (int k = 0; k < families.Count; k++)
+            families[k].GetComponent<Trader>().Coins += share + (k < rest ? 1 : 0);
     }
 
     // ---- Beliefs and records ----

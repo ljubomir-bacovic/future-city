@@ -94,20 +94,45 @@ public class LabourTests
     }
 
     [Fact]
-    public void A_treasury_that_can_neither_feed_nor_pay_lets_its_automatic_public_workers_go()
+    public void A_treasury_that_can_neither_feed_nor_pay_keeps_only_the_labour_owed_to_the_chief()
     {
         var sim = GameSupport.Plain();
-        GameSupport.Camp(sim, 10, 10, food: 0);
+        var camp = GameSupport.Camp(sim, 10, 10, food: 0);
+        GameSupport.SetAmount(camp, "wood", 500); // the site can progress
         GameSupport.Economy(sim, money: true);
         var home = GameSupport.Home(sim, 12, 14);
-        GameSupport.SetAmount(home, "berries", 100);
-        var member = GameSupport.Adult(sim, 12, 15).LivesIn(home);
+        GameSupport.SetAmount(home, "berries", 400);
         var site = GameSupport.Building(sim, "storehouse", 26, 10, complete: false);
-        UnitOrders.Assign(member, OrderKind.Build, site, TargetType.Building, site.GetComponent<Building>().Kind);
-        member.GetComponent<Order>().Auto = true;
+        var members = new List<Entity>();
+        for (int i = 0; i < 4; i++)
+        {
+            var member = GameSupport.Adult(sim, 12, 15).LivesIn(home);
+            UnitOrders.Assign(member, OrderKind.Build, site, TargetType.Building, site.GetComponent<Building>().Kind);
+            member.GetComponent<Order>().Auto = true;
+            member.GetComponent<Order>().Public = true;
+            members.Add(member);
+        }
 
         GameSupport.Run(sim, 21);
-        Assert.NotEqual(OrderKind.Build, member.GetComponent<Order>().Kind);
+        int owed = sim.World.Content.Economy.Wages.MinPublicWorkers;
+        Assert.Equal(owed, members.Count(m => m.GetComponent<Order>().Public && m.GetComponent<Order>().Kind == OrderKind.Build));
+    }
+
+    [Fact]
+    public void A_young_village_still_owes_the_chief_a_few_workers()
+    {
+        // Four adults in homes and an empty granary: 30% of them is one, but the chief can call on two.
+        var sim = GameSupport.Plain();
+        var camp = GameSupport.Camp(sim, 10, 10, food: 0);
+        GameSupport.SetAmount(camp, "wood", 500);
+        GameSupport.Economy(sim);
+        var home = GameSupport.Home(sim, 12, 14);
+        GameSupport.SetAmount(home, "berries", 400);
+        var members = Enumerable.Range(0, 4).Select(_ => GameSupport.Adult(sim, 12, 15).LivesIn(home)).ToList();
+        GameSupport.Building(sim, "storehouse", 26, 10, complete: false);
+
+        GameSupport.Run(sim, 41);
+        Assert.Equal(sim.World.Content.Economy.Wages.MinPublicWorkers, members.Count(m => m.GetComponent<Order>().Public));
     }
 
     [Fact]

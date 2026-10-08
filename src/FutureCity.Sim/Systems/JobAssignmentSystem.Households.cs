@@ -87,7 +87,6 @@ public sealed partial class JobAssignmentSystem
         int capacity = PayPublicWorkers(world, ctx, units);
         Trips(world, ctx, units);
         var demand = Demand.Of(world, player);
-        int publicWorkers = units.Count(u => IsPublicWorker(world, u));
         var gatherers = new int[content.Goods.Count];
         foreach (var unit in units)
         {
@@ -97,6 +96,7 @@ public sealed partial class JobAssignmentSystem
         WithdrawPublicGatherers(world, units, demand, gatherers);
 
         StaffCrownWork(world, ctx, units, demand);
+        int publicWorkers = units.Count(u => IsPublicWorker(world, u)); // crown work counts against what the chief can keep
         foreach (var unit in units)
         {
             if (unit.GetComponent<Order>().Kind != OrderKind.Idle) continue;
@@ -195,7 +195,10 @@ public sealed partial class JobAssignmentSystem
         int capacity = Stores.Meals(world, ctx.Player) / rules.RationMeals
                        + (ctx.Money ? treasury.Coins / Math.Max(1, wage * rules.ReserveChecks) : 0);
         int housed = units.Count(u => Households.TryGetHome(world, u, out _));
-        capacity = Math.Min(Math.Max(capacity, rules.MinPublicWorkers), housed * rules.MaxPublicPercent / 100);
+        // The share cap first; then the labour owed to the chief, fed or not: a few people, but never more than half
+        // the adults with a home, so families keep hands of their own.
+        capacity = Math.Min(capacity, housed * rules.MaxPublicPercent / 100);
+        capacity = Math.Max(capacity, Math.Min(rules.MinPublicWorkers, housed / 2));
         int working = units.Count(u => IsPublicWorker(world, u));
         for (int k = units.Count - 1; k >= 0 && working > capacity; k--)
         {

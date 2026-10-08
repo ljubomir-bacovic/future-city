@@ -136,6 +136,36 @@ public class MarketTests
     }
 
     [Fact]
+    public void Commission_goes_to_market_traders_families_and_no_coins_are_lost()
+    {
+        var (sim, market) = MarketTown(money: true);
+        var camper = GameSupport.Adult(sim, 20, 22);     // a market trader living at the camp
+        var trader = GameSupport.Adult(sim, 21, 22);     // and one with a family
+        var traderHome = GameSupport.Home(sim, 24, 24);
+        trader.LivesIn(traderHome);
+        foreach (var unit in new[] { camper, trader })
+        {
+            UnitOrders.Assign(unit, OrderKind.Work, market, TargetType.Building, market.GetComponent<Building>().Kind);
+            unit.GetComponent<Order>().Stage = OrderStage.Work;
+        }
+        long Coins() => sim.World.Store.Query<Trader>().Entities.Sum(e => (long)e.GetComponent<Trader>().Coins);
+        long before = Coins() + 4000; // the auction families start with 1000 coins each
+
+        Auction(sim, market);
+
+        Assert.Equal(before, Coins());
+        Assert.True(GameSupport.TraderOf(traderHome).Coins > 0);
+    }
+
+    [Fact]
+    public void A_player_has_only_one_marketplace()
+    {
+        var (sim, _) = MarketTown(money: false);
+        int kind = sim.World.Content.BuildingIndex("marketplace");
+        Assert.Equal(Placement.OnlyOne, Buildings.CanPlace(sim.World, Players.Human, kind, 40, 40));
+    }
+
+    [Fact]
     public void Beliefs_move_toward_the_price_and_away_from_failure()
     {
         var (sim, market) = MarketTown(money: true);

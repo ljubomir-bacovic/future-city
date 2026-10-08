@@ -20,6 +20,8 @@ public enum Placement
     Occupied,
     /// <summary>The player's people cannot walk there.</summary>
     Unreachable,
+    /// <summary>The player already has (or is building) one, and only one is allowed (a marketplace).</summary>
+    OnlyOne,
 }
 
 /// <summary>Facts and rules about buildings, shared by commands, systems, the AI and the UI.</summary>
@@ -51,6 +53,7 @@ public static class Buildings
     {
         var type = world.Content.Buildings[kind];
         if (!type.Requires.IsMet(Civics.FactsOf(world, player))) return Placement.NotAvailable;
+        if (type.Def.Market && HasAny(world, player, kind)) return Placement.OnlyOne;
         int size = type.Def.Size;
         var map = world.Map;
         for (int ty = y; ty < y + size; ty++)
@@ -106,6 +109,16 @@ public static class Buildings
         for (int kind = 0; kind < counts.Length; kind++)
             shelter += counts[kind] * world.Content.Buildings[kind].Def.Shelter;
         return shelter;
+    }
+
+    /// <summary>Whether the player has a building of this kind, finished or under construction.</summary>
+    public static bool HasAny(World world, int player, int kind)
+    {
+        foreach (var entity in world.Store.Query<Building, Owner>().Entities)
+        {
+            if (entity.GetComponent<Building>().Kind == kind && entity.GetComponent<Owner>().Player == player) return true;
+        }
+        return false;
     }
 
     /// <summary>Citizens whose order is to work at or build <paramref name="building"/>.</summary>
