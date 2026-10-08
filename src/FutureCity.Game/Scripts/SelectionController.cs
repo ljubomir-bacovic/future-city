@@ -10,9 +10,10 @@ using Godot;
 namespace FutureCity.Game;
 
 /// <summary>
-/// Selecting villagers (click, shift-click, drag a box) and giving orders with a right click:
-/// on an animal to hunt, on a bush or carcass to gather, on the camp to return, anywhere else to move.
-/// Orders are sent to the simulation as commands; this node holds only UI state.
+/// Selecting villagers (click, shift-click, drag a box) or a building (click), and giving villagers orders with a
+/// right click: on an animal to hunt; on a bush, carcass, stone or clay deposit to gather; on a forest to cut wood;
+/// on a construction site to build; on a farm, workshop or shrine to work there; on the camp to return; anywhere else
+/// to move. Orders are sent to the simulation as commands; this node holds only UI state.
 /// </summary>
 public partial class SelectionController : Node2D
 {
@@ -39,6 +40,9 @@ public partial class SelectionController : Node2D
     /// <summary>Ids of the selected villagers.</summary>
     public IReadOnlyList<int> Selected => _selected;
 
+    /// <summary>Id of the selected building, or 0. A building is selected only while no villagers are.</summary>
+    public int SelectedBuilding { get; private set; }
+
     /// <summary>Whether a villager is selected.</summary>
     public bool IsSelected(int id) => _selected.Contains(id);
 
@@ -57,6 +61,11 @@ public partial class SelectionController : Node2D
         var world = _driver.Simulation?.World;
         if (world != null && _selected.RemoveAll(id => !world.TryGetEntity(id, out _)) > 0)
             SelectionChanged?.Invoke();
+        if (world != null && SelectedBuilding != 0 && !world.TryGetEntity(SelectedBuilding, out _))
+        {
+            SelectedBuilding = 0;
+            SelectionChanged?.Invoke();
+        }
         _pingAge += delta;
         QueueRedraw();
     }
@@ -108,6 +117,22 @@ public partial class SelectionController : Node2D
         }
     }
 
+    /// <summary>Selects the player's first building of a type (for launch options and screenshots).</summary>
+    public void SelectFirstBuilding(string id)
+    {
+        var world = _driver.Simulation?.World;
+        if (world == null) return;
+        int kind = world.Content.BuildingIndex(id);
+        foreach (var e in World.InIdOrder(world.Store.Query<Building, Owner>()))
+        {
+            if (e.GetComponent<Building>().Kind != kind || !IsMine(e)) continue;
+            SetSelection(Array.Empty<int>());
+            SelectedBuilding = e.Id;
+            SelectionChanged?.Invoke();
+            return;
+        }
+    }
+
     /// <summary>Selects all of the player's villagers.</summary>
     public void SelectAllOwn()
     {
@@ -127,7 +152,13 @@ public partial class SelectionController : Node2D
         var hit = Pick(world, e => e.HasComponent<Citizen>() && IsMine(e));
         if (hit is not { } entity)
         {
-            if (!add) SetSelection(Array.Empty<int>());
+            if (add) return;
+            SetSelection(Array.Empty<int>());
+            if (BuildingUnderMouse(world) is { } building && IsMine(building))
+            {
+                SelectedBuilding = building.Id;
+                SelectionChanged?.Invoke();
+            }
             return;
         }
         if (!add) SetSelection(new[] { entity.Id });
@@ -155,7 +186,9 @@ public partial class SelectionController : Node2D
         if (units.Length == 0) return;
 
         var target = Pick(world, e => e.HasComponent<Animal>() || e.HasComponent<Carcass>() || e.HasComponent<Plant>()
-            || (e.HasComponent<Camp>() && IsMine(e)));
+            || e.HasComponent<Deposit>() || (e.HasComponent<Camp>() && IsMine(e)));
+        var building = target == null ? BuildingUnderMouse(world) : null;
+        var tile = _map.LocalToTile(GetGlobalMousePosition());
         Command command;
         if (target is { } t && t.HasComponent<Animal>())
             (command, _pingColor) = (new Hunt(units, t.Id), new Color("#ff6a5a"));
@@ -163,11 +196,14 @@ public partial class SelectionController : Node2D
             (command, _pingColor) = (new ReturnToCamp(units), new Color("#ffffff"));
         else if (target is { } f && Sources.HasGoods(f))
             (command, _pingColor) = (new Gather(units, f.Id), new Color("#ffd24a"));
+        else if (building is { } site && IsMine(site) && !Buildings.IsComplete(site))
+            (command, _pingColor) = (new Build(units, site.Id), new Color("#f2c94c"));
+        else if (building is { } work && IsMine(work) && Buildings.TypeOf(world, work).IsWorkplace)
+            (command, _pingColor) = (new AssignWork(units, work.Id), new Color("#9ad0ff"));
+        else if (Sources.TileInfo(world, tile.X, tile.Y) != null)
+            (command, _pingColor) = (new GatherTile(units, tile.X, tile.Y), new Color("#b7e07a"));
         else
-        {
-            var tile = _map.LocalToTile(GetGlobalMousePosition());
             (command, _pingColor) = (new MoveUnits(units, tile.X, tile.Y), new Color("#7dff8a"));
-        }
         sim.Enqueue(command with { Player = Players.Human });
         _pingAt = target is { } pinged ? _view.WorldPosition(pinged) : GetGlobalMousePosition();
         _pingAge = 0;
@@ -190,6 +226,19 @@ public partial class SelectionController : Node2D
         return best;
     }
 
+    /// <summary>The building whose footprint is under the mouse, if any.</summary>
+    public Entity? BuildingUnderMouse(World world)
+    {
+        var tile = _map.LocalToTile(GetGlobalMousePosition());
+        foreach (var e in world.Store.Query<Building, TilePosition>().Entities)
+        {
+            var pos = e.GetComponent<TilePosition>();
+            int size = Buildings.SizeOf(world, e);
+            if (tile.X >= pos.X && tile.X < pos.X + size && tile.Y >= pos.Y && tile.Y < pos.Y + size) return e;
+        }
+        return null;
+    }
+
     private Vector2 BodyCenter(Entity e) => _view.WorldPosition(e) + new Vector2(0, e.HasComponent<Camp>() ? -8 : -10);
 
     private static bool IsMine(Entity e) => e.TryGetComponent<Owner>(out var owner) && owner.Player == Players.Human;
@@ -197,7 +246,13 @@ public partial class SelectionController : Node2D
     private void SetSelection(IEnumerable<int> ids)
     {
         var next = ids.Distinct().OrderBy(id => id).ToList();
-        if (next.SequenceEqual(_selected)) return;
+        bool hadBuilding = SelectedBuilding != 0;
+        SelectedBuilding = 0;
+        if (next.SequenceEqual(_selected))
+        {
+            if (hadBuilding) SelectionChanged?.Invoke();
+            return;
+        }
         _selected.Clear();
         _selected.AddRange(next);
         SelectionChanged?.Invoke();

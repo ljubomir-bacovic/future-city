@@ -21,6 +21,7 @@ public partial class MapView : Node2D
     private TileMapLayer? _layer;
     private Vector2 _origin, _axisX, _axisY;
     private readonly List<Vector2> _trees = new();
+    private int _version;
 
     /// <summary>World-space rectangle enclosing the whole map.</summary>
     public Rect2 Bounds { get; private set; }
@@ -37,11 +38,7 @@ public partial class MapView : Node2D
         _axisY = _layer.MapToLocal(new Vector2I(0, 1)) - _origin;
 
         var map = world.Map;
-        for (int y = 0; y < map.Height; y++)
-        {
-            for (int x = 0; x < map.Width; x++)
-                _layer.SetCell(new Vector2I(x, y), 0, new Vector2I(map.GetTerrain(x, y), (x + y) & 1));
-        }
+        SetCells(world);
 
         var half = (Vector2)TileSize / 2;
         var top = _layer.MapToLocal(new Vector2I(0, 0)) - new Vector2(0, half.Y);
@@ -52,6 +49,26 @@ public partial class MapView : Node2D
 
         PlaceTrees(world);
         QueueRedraw();
+    }
+
+    /// <summary>Redraws the terrain if it changed since the last call (e.g. a forest was cleared).</summary>
+    public void SyncTerrain(World world)
+    {
+        if (_layer == null || world.Map.Version == _version) return;
+        SetCells(world);
+        PlaceTrees(world);
+        QueueRedraw();
+    }
+
+    private void SetCells(World world)
+    {
+        var map = world.Map;
+        for (int y = 0; y < map.Height; y++)
+        {
+            for (int x = 0; x < map.Width; x++)
+                _layer!.SetCell(new Vector2I(x, y), 0, new Vector2I(map.GetTerrain(x, y), (x + y) & 1));
+        }
+        _version = map.Version;
     }
 
     /// <summary>Converts a (fractional) tile coordinate to the world-space position of that point on the ground.</summary>
