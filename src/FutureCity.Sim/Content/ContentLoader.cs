@@ -419,6 +419,8 @@ public static partial class ContentLoader
         CheckAmounts(f, "merchants.wants", t.Wants, goods, errors);
         CheckRange(f, "merchants.sellMarkupPercent", t.SellMarkupPercent, 0, 1000, errors);
         CheckRange(f, "merchants.buyDiscountPercent", t.BuyDiscountPercent, 0, 99, errors);
+        CheckRange(f, "tradeAgreements.caravanCargo", e.TradeAgreements.CaravanCargo, 0, 100_000, errors);
+        CheckRange(f, "tradeAgreements.caravanCoinsPercent", e.TradeAgreements.CaravanCoinsPercent, 0, 100, errors);
         CheckRange(f, "guilds.outputBonusPercent", e.Guilds.OutputBonusPercent, 0, 1000, errors);
         CheckRange(f, "guilds.marginPercent", e.Guilds.MarginPercent, 0, 1000, errors);
         CheckRange(f, "guilds.newMembersPerYear", e.Guilds.NewMembersPerYear, 0, 100, errors);

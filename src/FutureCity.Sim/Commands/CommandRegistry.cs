@@ -41,7 +41,10 @@ public sealed class CommandRegistry
             .Register<Attack>("attack")
             .Register<AttackMove>("attackMove")
             .Register<Loot>("loot")
-            .Register<DeclareWar>("declareWar");
+            .Register<DeclareWar>("declareWar")
+            .Register<Propose>("propose")
+            .Register<Respond>("respond")
+            .Register<BreakAgreement>("breakAgreement");
     }
 
     /// <summary>Registers a command type under a stable name.</summary>

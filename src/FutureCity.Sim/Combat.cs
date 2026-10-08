@@ -17,7 +17,8 @@ public static class Combat
     /// </summary>
     public static bool IsEnemy(World world, int player, Entity target)
     {
-        if (target.TryGetComponent<Merchant>(out var merchant)) return Relations.AtWar(world, player, merchant.Player);
+        if (target.TryGetComponent<Merchant>(out var merchant))
+            return Relations.AtWar(world, player, merchant.Player) || Relations.AtWar(world, player, merchant.From);
         if (!target.TryGetComponent<Owner>(out var owner) || !Relations.AtWar(world, player, owner.Player)) return false;
         return target.HasComponent<Citizen>() || target.HasComponent<Building>();
     }

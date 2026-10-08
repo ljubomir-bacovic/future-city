@@ -1,6 +1,7 @@
 using Friflo.Engine.ECS;
 using FutureCity.Sim.Components;
 using FutureCity.Sim.Content;
+using FutureCity.Sim.Emergence;
 
 namespace FutureCity.Sim;
 
@@ -53,6 +54,15 @@ public static class Traders
     /// <summary>Whether the trader is a foreign merchant caravan.</summary>
     public static bool IsMerchant(Entity trader) => trader.HasComponent<Merchant>();
 
+    /// <summary>Whether the trader is a foreign merchant (not a caravan sent by a civilization under a trade agreement).</summary>
+    public static bool IsForeign(Entity trader) => trader.TryGetComponent<Merchant>(out var m) && m.From == 0;
+
+    // What a trader thinks a good is worth: a trade caravan goes by its treasury's beliefs.
+    private static int BeliefOf(World world, Entity trader, int good) =>
+        trader.TryGetComponent<Merchant>(out var m) && m.From != 0 && Civics.TryGet(world, m.From, out var sender)
+            ? sender.GetComponent<Trader>().Beliefs[good]
+            : trader.GetComponent<Trader>().Beliefs[good];
+
     /// <summary>The player a trader belongs to, or for a merchant the player whose market it visits.</summary>
     public static int PlayerOf(Entity trader) =>
         IsMerchant(trader) ? trader.GetComponent<Merchant>().Player : trader.GetComponent<Owner>().Player;
@@ -78,6 +88,19 @@ public static class Traders
         var atMarket = trader.GetComponent<Trader>().AtMarket;
         for (int g = 0; g < goods; g++) plan.Held[g] = home[g] + atMarket[g];
 
+        if (trader.TryGetComponent<Merchant>(out var caravan) && caravan.From != 0
+            && Civics.TryGet(world, caravan.From, out var sender))
+        {
+            // A trade agreement's caravan sells all it brought and buys what its treasury lacks.
+            var treasuryPlan = PlanOf(world, sender, members);
+            for (int g = 0; g < goods; g++)
+            {
+                plan.Target[g] = treasuryPlan.Target[g];
+                plan.Wanted[g] = Math.Max(0, treasuryPlan.Wanted[g] - caravan.Bought[g]);
+                plan.Offered[g] = plan.Held[g];
+            }
+            return plan;
+        }
         if (IsMerchant(trader))
         {
             var bought = trader.GetComponent<Merchant>().Bought;
@@ -215,9 +238,9 @@ public static class Traders
     {
         var rules = world.Content.Economy;
         int player = PlayerOf(trader);
-        if (IsMerchant(trader))
+        if (IsForeign(trader))
             return Math.Max(1, (int)((long)WorldPrice(world, player, good) * (100 + rules.Merchants.SellMarkupPercent) / 100));
-        int belief = trader.GetComponent<Trader>().Beliefs[good];
+        int belief = BeliefOf(world, trader, good);
         int ask = Glut(world, plan, good) ? belief * (100 - rules.Market.SurplusDiscountPercent) / 100 : belief;
         if (Economy.HasGuilds(world, player)) ask = Math.Max(ask, GuildFloor(world, trader, good));
         return Math.Max(1, ask);
@@ -227,9 +250,9 @@ public static class Traders
     public static int BidLimit(World world, Entity trader, TradePlan plan, int good)
     {
         var rules = world.Content.Economy;
-        if (IsMerchant(trader))
+        if (IsForeign(trader))
             return Math.Max(1, (int)((long)WorldPrice(world, PlayerOf(trader), good) * (100 - rules.Merchants.BuyDiscountPercent) / 100));
-        int belief = trader.GetComponent<Trader>().Beliefs[good];
+        int belief = BeliefOf(world, trader, good);
         int bid = Short(world, plan, good) ? belief * (100 + rules.Market.NeedPremiumPercent) / 100 : belief;
         return Math.Max(1, bid);
     }
