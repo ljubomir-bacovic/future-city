@@ -124,6 +124,13 @@ public partial class EntityView : Node2D
             bool facingLeft = mover.NextX - e.GetComponent<TilePosition>().X < mover.NextY - e.GetComponent<TilePosition>().Y;
             _drawList.Add((p.Y, () => DrawDeer(p, color, facingLeft)));
         }
+        foreach (var e in world.Store.Query<Merchant, TilePosition>().Entities)
+        {
+            var p = WorldPosition(e);
+            int porters = world.Content.Economy.Merchants.Porters;
+            bool loaded = e.GetComponent<Inventory>().Amounts.Any(n => n > 0);
+            _drawList.Add((p.Y, () => DrawCaravan(p, porters, loaded)));
+        }
         var rules = world.Content.Citizens;
         foreach (var e in world.Store.Query<Citizen, TilePosition>().Entities)
         {
@@ -162,7 +169,15 @@ public partial class EntityView : Node2D
         }
         var corners = Footprint(pos.X, pos.Y, size);
         float depth = corners[2].Y;
-        if (Buildings.IsComplete(e))
+        if (Buildings.IsComplete(e) && type.Def.Market)
+        {
+            // Stalls show the goods on sale, the most plentiful first.
+            var stock = e.GetComponent<Inventory>().Amounts;
+            var goods = Enumerable.Range(0, stock.Length).Where(g => stock[g] > 0).OrderByDescending(g => stock[g]).Take(4)
+                .Select(g => new Color(world.Content.Goods[g].Color)).ToArray();
+            _drawList.Add((depth, () => DrawMarket(pos.X, pos.Y, size, color, goods, selected)));
+        }
+        else if (Buildings.IsComplete(e))
         {
             string id = type.Def.Id;
             _drawList.Add((depth, () => DrawBuilding(id, pos.X, pos.Y, size, color, selected)));
@@ -367,7 +382,49 @@ public partial class EntityView : Node2D
             case "shrine":
                 DrawCircle(peak + new Vector2(0, -3), 2.5f, new Color("#f2c94c"));
                 break;
+            case "mint":
+                var coin = (c[2] + c[1]) / 2 + new Vector2(6, -wall * 0.55f);
+                DrawCircle(coin, 4, new Color("#d8dde2"));
+                DrawArc(coin, 4, 0, Mathf.Tau, 16, new Color("#8d8f96"), 1);
+                break;
         }
+    }
+
+    // A marketplace: an open square with four stalls under striped awnings, and the goods on sale.
+    private void DrawMarket(int x, int y, int size, Color color, Color[] goods, bool selected)
+    {
+        var c = Footprint(x, y, size, 0.06f);
+        DrawColoredPolygon(c, color.Darkened(0.35f) with { A = 0.55f });
+        if (selected) DrawPolyline([.. c, c[0]], SelectRing, 1.5f);
+        var center = (c[0] + c[2]) / 2;
+        Vector2[] stalls = [(c[0] + center) / 2, (c[1] + center) / 2, (c[3] + center) / 2, (c[2] + center) / 2];
+        for (int i = 0; i < stalls.Length; i++)
+        {
+            var s = stalls[i];
+            DrawRect(new Rect2(s + new Vector2(-8, -5), new Vector2(16, 5)), new Color("#7a5a3a"));
+            var awning = i % 2 == 0 ? new Color("#c0504d") : new Color("#e9e2cf");
+            DrawColoredPolygon([s + new Vector2(-10, -12), s + new Vector2(10, -12), s + new Vector2(8, -6), s + new Vector2(-8, -6)], awning);
+            DrawLine(s + new Vector2(-8, -6), s + new Vector2(-8, 0), new Color("#5a4632"), 1);
+            DrawLine(s + new Vector2(8, -6), s + new Vector2(8, 0), new Color("#5a4632"), 1);
+            if (i < goods.Length) Ellipse(s + new Vector2(0, -6), 5, 2.5f, goods[i]);
+        }
+    }
+
+    // A merchant caravan: a pack animal and porters in travelling cloaks.
+    private void DrawCaravan(Vector2 feet, int porters, bool loaded)
+    {
+        Ellipse(feet + new Vector2(0, 2), 14, 5, Shadow);
+        var mule = feet + new Vector2(-6, -7);
+        Ellipse(mule, 8, 4.5f, new Color("#7a6a58"));
+        DrawLine(mule + new Vector2(6, 0), mule + new Vector2(11, -5), new Color("#7a6a58"), 3);
+        for (int leg = -1; leg <= 1; leg += 2) DrawLine(mule + new Vector2(leg * 5, 3), mule + new Vector2(leg * 5, 8), new Color("#5a4a3a"), 1.5f);
+        if (loaded)
+        {
+            DrawRect(new Rect2(mule + new Vector2(-6, -8), new Vector2(5, 5)), new Color("#c49a5a"));
+            DrawRect(new Rect2(mule + new Vector2(0, -8), new Vector2(5, 5)), new Color("#a8324a"));
+        }
+        for (int i = 0; i < porters; i++)
+            DrawPerson(feet + new Vector2(6 + i * 7, i * 2), 0.9f, false, 1f, loaded ? new Color("#c49a5a") : null, false);
     }
 
     // A construction site: the footprint marked out, a scaffold growing with progress, and a progress bar.
