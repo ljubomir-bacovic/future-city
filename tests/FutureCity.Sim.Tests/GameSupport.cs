@@ -71,6 +71,32 @@ internal static class GameSupport
     public static Entity Deer(Simulation sim, int x, int y) =>
         Spawn.Animal(sim.World, sim.World.Content.AnimalIndex("deer"), x, y, x, y);
 
+    /// <summary>Sets the soil fertility of a square of tiles.</summary>
+    public static void SetFertility(Simulation sim, int x, int y, int size, int fertility)
+    {
+        for (int ty = y; ty < y + size; ty++)
+        {
+            for (int tx = x; tx < x + size; tx++)
+                sim.World.Map.SetFertility(tx, ty, fertility);
+        }
+    }
+
+    /// <summary>Steps until the given season begins.</summary>
+    public static void RunToSeason(Simulation sim, string season)
+    {
+        int perSeason = Calendar.TicksPerSeason(sim.World.Content);
+        RunUntil(sim, () => Calendar.Season(sim.World).Id == season && sim.World.Tick % perSeason == 0,
+            sim.World.Content.Calendar.TicksPerYear + 1);
+    }
+
+    /// <summary>Gives the player an established institution (default: chiefdom, which brings automatic jobs).</summary>
+    public static void Establish(Simulation sim, string institution = "chiefdom") =>
+        Civ(sim).GetComponent<Civilization>().Institutions[sim.World.Content.InstitutionIndex(institution)] = 1;
+
+    /// <summary>Teaches the player a technology.</summary>
+    public static void Learn(Simulation sim, string tech) =>
+        Civ(sim).GetComponent<Civilization>().Techs[sim.World.Content.TechIndex(tech)] = 1;
+
     /// <summary>Steps and returns every event raised on the way.</summary>
     public static List<SimEvent> Run(Simulation sim, int ticks)
     {
