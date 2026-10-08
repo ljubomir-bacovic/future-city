@@ -8,9 +8,10 @@ using Godot;
 namespace FutureCity.Game;
 
 /// <summary>
-/// Draws people, animals, plants, deposits, camps and buildings as simple placeholder shapes (until the illustrated
-/// art arrives in Phase 8). Walkers are interpolated between ticks, and everything is drawn back to front.
-/// Construction sites show a scaffold and a progress bar; fields show their crop.
+/// Draws people, animals, plants, deposits, camps and buildings with the sprites in <see cref="Art"/>, falling back
+/// to simple shapes for content without art. Walkers are interpolated between ticks and step while they move, and
+/// everything is drawn back to front. Construction sites show a scaffold and a progress bar; fields show their crop;
+/// market stalls show the goods on sale and a worked mill turns its sails.
 /// </summary>
 public partial class EntityView : Node2D
 {
@@ -45,7 +46,25 @@ public partial class EntityView : Node2D
         _driver = driver;
         _map = map;
         _selection = selection;
+        TextureFilter = TextureFilterEnum.LinearWithMipmaps;
     }
+
+    // Animation time in seconds (presentation only; the simulation never sees it).
+    private static float Now => Time.GetTicksMsec() / 1000f;
+
+    // Whether a walker is between two tiles, and whether it is heading left on screen.
+    private bool IsWalking(Entity entity, out bool left)
+    {
+        left = false;
+        if (!entity.TryGetComponent<Mover>(out var mover)) return false;
+        var pos = entity.GetComponent<TilePosition>();
+        if (mover.NextX == pos.X && mover.NextY == pos.Y) return false;
+        left = (mover.NextX - pos.X) - (mover.NextY - pos.Y) < 0;
+        return true;
+    }
+
+    // Two-frame walk cycle, offset per entity so a group does not step in lockstep.
+    private static bool StepFrame(int id) => ((int)(Now * 5) + id) % 2 == 0;
 
     public override void _Process(double delta) => QueueRedraw();
 
@@ -89,7 +108,7 @@ public partial class EntityView : Node2D
         foreach (var e in world.Store.Query<Camp, TilePosition>().Entities)
         {
             var p = WorldPosition(e);
-            _drawList.Add((p.Y, () => DrawCamp(p)));
+            _drawList.Add((p.Y, () => { if (!Art.DrawSprite(this, "camp", p)) DrawCamp(p); }));
         }
         foreach (var e in world.Store.Query<Building, TilePosition>().Entities)
             AddBuilding(world, e);
@@ -106,30 +125,39 @@ public partial class EntityView : Node2D
             var p = WorldPosition(e);
             var deposit = e.GetComponent<Deposit>();
             var def = world.Content.Deposits[deposit.Kind];
+            // A deposit shrinks as it is worked out.
             float fill = Mathf.Clamp((float)deposit.Amount / def.Amount, 0.25f, 1f);
             var color = new Color(def.Color);
             bool pit = def.NearWater;
-            _drawList.Add((p.Y, () => { if (pit) DrawClayPit(p, color, fill); else DrawRocks(p, color, fill); }));
+            string id = def.Id;
+            _drawList.Add((p.Y, () =>
+            {
+                if (Art.DrawSprite(this, id, p, pit ? 1f : 0.55f + 0.45f * fill)) return;
+                if (pit) DrawClayPit(p, color, fill); else DrawRocks(p, color, fill);
+            }));
         }
         foreach (var e in world.Store.Query<Carcass, TilePosition>().Entities)
         {
             var p = WorldPosition(e);
-            _drawList.Add((p.Y, () => DrawCarcass(p)));
+            _drawList.Add((p.Y, () => { if (!Art.DrawSprite(this, "carcass", p)) DrawCarcass(p); }));
         }
         foreach (var e in world.Store.Query<Animal, TilePosition>().Entities)
         {
             var p = WorldPosition(e);
             var color = new Color(world.Content.Animals[e.GetComponent<Animal>().Kind].Color);
-            var mover = e.GetComponent<Mover>();
-            bool facingLeft = mover.NextX - e.GetComponent<TilePosition>().X < mover.NextY - e.GetComponent<TilePosition>().Y;
-            _drawList.Add((p.Y, () => DrawDeer(p, color, facingLeft)));
+            string id = world.Content.Animals[e.GetComponent<Animal>().Kind].Id;
+            bool walking = IsWalking(e, out bool facingLeft);
+            string frame = walking && StepFrame(e.Id) && Art.HasSprite(id + "_run") ? id + "_run" : id;
+            _drawList.Add((p.Y, () => { if (!Art.DrawSprite(this, frame, p, flip: facingLeft)) DrawDeer(p, color, facingLeft); }));
         }
         foreach (var e in world.Store.Query<Merchant, TilePosition>().Entities)
         {
             var p = WorldPosition(e);
             int porters = world.Content.Economy.Merchants.Porters;
             bool loaded = e.GetComponent<Inventory>().Amounts.Any(n => n > 0);
-            _drawList.Add((p.Y, () => DrawCaravan(p, porters, loaded)));
+            bool walking = IsWalking(e, out bool left);
+            bool step = walking && StepFrame(e.Id);
+            _drawList.Add((p.Y, () => DrawCaravan(p, porters, loaded, step, left)));
         }
         var rules = world.Content.Citizens;
         foreach (var e in world.Store.Query<Citizen, TilePosition>().Entities)
@@ -139,9 +167,12 @@ public partial class EntityView : Node2D
             bool adult = Bands.IsAdult(world, citizen);
             bool selected = _selection.IsSelected(e.Id);
             float health = (float)citizen.Health / rules.MaxHealth;
-            Color? load = citizen.Carried > 0 ? new Color(world.Content.Goods[citizen.CarriedGood].Color) : null;
+            string? load = citizen.Carried > 0 ? world.Content.Goods[citizen.CarriedGood].Id : null;
+            Color? loadColor = citizen.Carried > 0 ? new Color(world.Content.Goods[citizen.CarriedGood].Color) : null;
             bool tool = citizen.ToolWear > 0;
-            _drawList.Add((p.Y, () => DrawPerson(p, adult ? 1f : 0.65f, selected, health, load, tool)));
+            bool walking = IsWalking(e, out bool left);
+            string sprite = $"villager{e.Id % 3}" + (walking && StepFrame(e.Id) ? "_walk" : "");
+            _drawList.Add((p.Y, () => DrawPerson(p, adult ? 1f : 0.65f, selected, health, load, loadColor, tool, sprite, left)));
         }
 
         _drawList.Sort((a, b) => a.Depth.CompareTo(b.Depth));
@@ -169,17 +200,29 @@ public partial class EntityView : Node2D
         }
         var corners = Footprint(pos.X, pos.Y, size);
         float depth = corners[2].Y;
+        string id = type.Def.Id;
         if (Buildings.IsComplete(e) && type.Def.Market)
         {
             // Stalls show the goods on sale, the most plentiful first.
             var stock = e.GetComponent<Inventory>().Amounts;
             var goods = Enumerable.Range(0, stock.Length).Where(g => stock[g] > 0).OrderByDescending(g => stock[g]).Take(4)
-                .Select(g => new Color(world.Content.Goods[g].Color)).ToArray();
-            _drawList.Add((depth, () => DrawMarket(pos.X, pos.Y, size, color, goods, selected)));
+                .Select(g => world.Content.Goods[g]).ToArray();
+            _drawList.Add((depth, () => DrawMarket(id, pos.X, pos.Y, size, color, goods, selected)));
+        }
+        else if (Buildings.IsComplete(e) && Art.HasSprite(id))
+        {
+            var center = WorldPosition(e);
+            // A mill's sails turn while someone works it.
+            bool turning = id == "mill" && Buildings.WorkersAt(world, e.Id) > 0;
+            _drawList.Add((depth, () =>
+            {
+                if (selected) DrawPolyline([.. corners, corners[0]], SelectRing, 1.5f);
+                Art.DrawSprite(this, id, center);
+                if (id == "mill") Art.DrawSprite(this, "mill_sails", center + Art.MillHub, rotation: turning ? Now * 1.2f : 0.4f);
+            }));
         }
         else if (Buildings.IsComplete(e))
         {
-            string id = type.Def.Id;
             _drawList.Add((depth, () => DrawBuilding(id, pos.X, pos.Y, size, color, selected)));
         }
         else
@@ -203,7 +246,8 @@ public partial class EntityView : Node2D
         DrawSetTransform(Vector2.Zero);
     }
 
-    private void DrawPerson(Vector2 feet, float scale, bool selected, float health, Color? load, bool tool)
+    private void DrawPerson(Vector2 feet, float scale, bool selected, float health, string? load, Color? loadColor, bool tool,
+        string sprite = "villager0", bool left = false)
     {
         if (selected)
         {
@@ -211,13 +255,20 @@ public partial class EntityView : Node2D
             DrawArc(Vector2.Zero, 11, 0, Mathf.Tau, 24, SelectRing, 1.5f);
             DrawSetTransform(Vector2.Zero);
         }
-        Ellipse(feet, 6 * scale, 3 * scale, Shadow);
-        var body = feet + new Vector2(0, -9 * scale);
-        DrawRect(new Rect2(body + new Vector2(-3.5f, -6) * scale, new Vector2(7, 12) * scale), Tunic);
-        DrawCircle(feet + new Vector2(0, -19 * scale), 4 * scale, Skin);
-        DrawCircle(feet + new Vector2(0, -21 * scale), 3 * scale, Hair);
-        if (tool) DrawLine(feet + new Vector2(-4, -8) * scale, feet + new Vector2(-7, -16) * scale, new Color("#5f6f7a"), 1.5f);
-        if (load is { } goods) DrawCircle(feet + new Vector2(4.5f, -11) * scale, 2.8f * scale, goods);
+        float side = left ? -1 : 1;
+        if (tool) DrawLine(feet + new Vector2(-6 * side, -10) * scale, feet + new Vector2(-9 * side, -21) * scale, new Color("#5f6f7a"), 1.5f);
+        if (!Art.DrawSprite(this, sprite, feet, scale, left))
+        {
+            Ellipse(feet, 6 * scale, 3 * scale, Shadow);
+            var body = feet + new Vector2(0, -9 * scale);
+            DrawRect(new Rect2(body + new Vector2(-3.5f, -6) * scale, new Vector2(7, 12) * scale), Tunic);
+            DrawCircle(feet + new Vector2(0, -19 * scale), 4 * scale, Skin);
+            DrawCircle(feet + new Vector2(0, -21 * scale), 3 * scale, Hair);
+        }
+        // What they carry, held in front of them.
+        var hand = feet + new Vector2(7 * side, -13) * scale;
+        if (load != null && !Art.DrawIcon(this, load, hand, 10 * scale) && loadColor is { } goods)
+            DrawCircle(hand, 2.8f * scale, goods);
         if (selected)
         {
             var bar = new Rect2(feet + new Vector2(-8, -30 * scale), new Vector2(16, 2.5f));
@@ -252,21 +303,29 @@ public partial class EntityView : Node2D
 
     private void DrawBush(Vector2 feet, int food, int maxFood, Color berry)
     {
-        Ellipse(feet, 10, 4, Shadow);
         if (food == 0)
         {
+            if (Art.DrawSprite(this, "bush_bare", feet)) return;
+            Ellipse(feet, 10, 4, Shadow);
             for (int i = -2; i <= 2; i++)
                 DrawLine(feet, feet + new Vector2(i * 3, -10 + Math.Abs(i) * 2), BareTwig, 1.2f);
             return;
         }
-        DrawCircle(feet + new Vector2(-4, -6), 6, LeafDark);
-        DrawCircle(feet + new Vector2(4, -6), 6, LeafDark);
-        DrawCircle(feet + new Vector2(0, -10), 7, Leaf);
-        int berries = Math.Max(1, (int)Math.Ceiling(8.0 * food / maxFood));
+        if (!Art.DrawSprite(this, "bush", feet))
+        {
+            Ellipse(feet, 10, 4, Shadow);
+            DrawCircle(feet + new Vector2(-4, -6), 6, LeafDark);
+            DrawCircle(feet + new Vector2(4, -6), 6, LeafDark);
+            DrawCircle(feet + new Vector2(0, -10), 7, Leaf);
+        }
+        // Berries thin out as the bush is picked.
+        int berries = Math.Max(1, (int)Math.Ceiling(9.0 * food / maxFood));
         for (int i = 0; i < berries; i++)
         {
             float angle = i * 2.4f;
-            DrawCircle(feet + new Vector2(0, -8) + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle) * 0.7f) * (2 + i % 3 * 2), 1.6f, berry);
+            var at = feet + new Vector2(0, -8) + new Vector2(Mathf.Cos(angle) * 1.3f, Mathf.Sin(angle) * 0.8f) * (2 + i % 3 * 2);
+            DrawCircle(at, 1.9f, berry.Darkened(0.4f));
+            DrawCircle(at, 1.5f, berry);
         }
     }
 
@@ -391,13 +450,24 @@ public partial class EntityView : Node2D
     }
 
     // A marketplace: an open square with four stalls under striped awnings, and the goods on sale.
-    private void DrawMarket(int x, int y, int size, Color color, Color[] goods, bool selected)
+    private void DrawMarket(string id, int x, int y, int size, Color color, Sim.Content.GoodDef[] goods, bool selected)
     {
         var c = Footprint(x, y, size, 0.06f);
+        var center = (c[0] + c[2]) / 2;
+        // Stalls back to front, as in the sprite: back, left, right, front.
+        Vector2[] stalls = [(c[0] + center) / 2, (c[3] + center) / 2, (c[1] + center) / 2, (c[2] + center) / 2];
+        if (Art.DrawSprite(this, id, center))
+        {
+            if (selected) DrawPolyline([.. c, c[0]], SelectRing, 1.5f);
+            for (int i = 0; i < goods.Length && i < stalls.Length; i++)
+            {
+                if (!Art.DrawIcon(this, goods[i].Id, stalls[i] + new Vector2(0, -7), 9))
+                    Ellipse(stalls[i] + new Vector2(0, -6), 5, 2.5f, new Color(goods[i].Color));
+            }
+            return;
+        }
         DrawColoredPolygon(c, color.Darkened(0.35f) with { A = 0.55f });
         if (selected) DrawPolyline([.. c, c[0]], SelectRing, 1.5f);
-        var center = (c[0] + c[2]) / 2;
-        Vector2[] stalls = [(c[0] + center) / 2, (c[1] + center) / 2, (c[3] + center) / 2, (c[2] + center) / 2];
         for (int i = 0; i < stalls.Length; i++)
         {
             var s = stalls[i];
@@ -406,13 +476,19 @@ public partial class EntityView : Node2D
             DrawColoredPolygon([s + new Vector2(-10, -12), s + new Vector2(10, -12), s + new Vector2(8, -6), s + new Vector2(-8, -6)], awning);
             DrawLine(s + new Vector2(-8, -6), s + new Vector2(-8, 0), new Color("#5a4632"), 1);
             DrawLine(s + new Vector2(8, -6), s + new Vector2(8, 0), new Color("#5a4632"), 1);
-            if (i < goods.Length) Ellipse(s + new Vector2(0, -6), 5, 2.5f, goods[i]);
+            if (i < goods.Length) Ellipse(s + new Vector2(0, -6), 5, 2.5f, new Color(goods[i].Color));
         }
     }
 
     // A merchant caravan: a pack animal and porters in travelling cloaks.
-    private void DrawCaravan(Vector2 feet, int porters, bool loaded)
+    private void DrawCaravan(Vector2 feet, int porters, bool loaded, bool step = false, bool left = false)
     {
+        if (Art.DrawSprite(this, loaded ? "mule_loaded" : "mule", feet + new Vector2(-6, 0), flip: left))
+        {
+            for (int i = 0; i < porters; i++)
+                Art.DrawSprite(this, step == (i % 2 == 0) ? "porter_walk" : "porter", feet + new Vector2(8 + i * 8, 2 + i * 2), flip: left);
+            return;
+        }
         Ellipse(feet + new Vector2(0, 2), 14, 5, Shadow);
         var mule = feet + new Vector2(-6, -7);
         Ellipse(mule, 8, 4.5f, new Color("#7a6a58"));
@@ -424,7 +500,7 @@ public partial class EntityView : Node2D
             DrawRect(new Rect2(mule + new Vector2(0, -8), new Vector2(5, 5)), new Color("#a8324a"));
         }
         for (int i = 0; i < porters; i++)
-            DrawPerson(feet + new Vector2(6 + i * 7, i * 2), 0.9f, false, 1f, loaded ? new Color("#c49a5a") : null, false);
+            DrawPerson(feet + new Vector2(6 + i * 7, i * 2), 0.9f, false, 1f, null, loaded ? new Color("#c49a5a") : null, false);
     }
 
     // A construction site: the footprint marked out, a scaffold growing with progress, and a progress bar.

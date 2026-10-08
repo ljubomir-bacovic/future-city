@@ -54,7 +54,7 @@ public partial class BuildMenu : Node2D
     {
         var layer = new CanvasLayer { Name = "BuildLayer" };
         AddChild(layer);
-        var panel = new PanelContainer { Name = "BuildPanel" };
+        var panel = new PanelContainer { Name = "BuildPanel", TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps };
         panel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomRight);
         panel.GrowHorizontal = Control.GrowDirection.Begin;
         panel.GrowVertical = Control.GrowDirection.Begin;
@@ -72,7 +72,12 @@ public partial class BuildMenu : Node2D
             foreach (var type in content.Buildings)
             {
                 int kind = type.Index;
-                var button = new Button { Text = type.Def.Name, FocusMode = Control.FocusModeEnum.None, CustomMinimumSize = new Vector2(110, 0) };
+                var button = new Button
+                {
+                    Text = type.Def.Name, Icon = Art.SpriteIcon(type.Def.Id), FocusMode = Control.FocusModeEnum.None,
+                    CustomMinimumSize = new Vector2(140, 36), Alignment = HorizontalAlignment.Left,
+                };
+                button.AddThemeConstantOverride("icon_max_width", 30);
                 button.Pressed += () => _placing = kind;
                 _buttons.Add(button);
                 grid.AddChild(button);
@@ -169,6 +174,7 @@ public partial class BuildMenu : Node2D
                 Placement.BadTerrain => "Cannot build there: the ground is not suitable",
                 Placement.Occupied => "Cannot build there: something is in the way",
                 Placement.Unreachable => "Cannot build there: your people cannot get there",
+                Placement.OnlyOne => "You already have one",
                 Placement.OffMap => "Cannot build there",
                 _ => "Not available yet",
             });

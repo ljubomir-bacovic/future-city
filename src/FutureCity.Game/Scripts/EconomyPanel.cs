@@ -34,6 +34,7 @@ public partial class EconomyPanel : CanvasLayer
     private Control _cpiChart = null!;
     private VBoxContainer _treasury = null!;
     private Label _treasuryText = null!;
+    private RichTextLabel _publicStores = null!;
     private HSlider _tribute = null!, _marketTax = null!, _tariff = null!, _quality = null!;
     private Label _tributeValue = null!, _marketTaxValue = null!, _tariffValue = null!, _qualityValue = null!;
     private HBoxContainer _marketTaxRow = null!, _qualityRow = null!;
@@ -41,6 +42,7 @@ public partial class EconomyPanel : CanvasLayer
     private Label _societyText = null!;
     private bool _updating;
     private readonly Dictionary<int, (Label Price, Label Change, Label Volume, Control Chart)> _rows = [];
+    private Label? _priceHeader;
 
     /// <summary>Whether the panel is open.</summary>
     public bool IsOpen => _panel.Visible;
@@ -50,7 +52,7 @@ public partial class EconomyPanel : CanvasLayer
     {
         _driver = driver;
         Layer = 2;
-        _panel = new PanelContainer { Name = "EconomyPanel", Visible = false };
+        _panel = new PanelContainer { Name = "EconomyPanel", Visible = false, TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps };
         _panel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopLeft);
         _panel.Position += new Vector2(8, 44);
         AddChild(_panel);
@@ -77,6 +79,8 @@ public partial class EconomyPanel : CanvasLayer
 
         _treasury = Section(rows, "Treasury and taxes");
         _treasuryText = Text(_treasury, "", Dim);
+        _publicStores = new RichTextLabel { FitContent = true, ScrollActive = false, CustomMinimumSize = new Vector2(490, 0), Modulate = Dim };
+        _treasury.AddChild(_publicStores);
         _tribute = Slider(_treasury, "Tribute", out _tributeValue, out _,
             "Share of what families bring home that they deliver to the public stores. Feeds public works, but families keep less.");
         _marketTax = Slider(_treasury, "Market tax", out _marketTaxValue, out _marketTaxRow,
@@ -92,7 +96,16 @@ public partial class EconomyPanel : CanvasLayer
         _societyText = Text(_society, "", Dim);
 
         _driver.Ticked += () => { if (IsOpen && _driver.Simulation!.World.Tick % 5 == 0) Refresh(); };
-        _driver.SimulationChanged += () => { _rows.Clear(); foreach (var c in _prices.GetChildren()) c.QueueFree(); if (IsOpen) Refresh(); };
+        _driver.SimulationChanged += () =>
+        {
+            _rows.Clear();
+            foreach (var c in _prices.GetChildren())
+            {
+                _prices.RemoveChild(c);
+                c.QueueFree();
+            }
+            if (IsOpen) Refresh();
+        };
     }
 
     /// <summary>Opens or closes the panel.</summary>
@@ -111,7 +124,7 @@ public partial class EconomyPanel : CanvasLayer
         bool families = Economy.HasHouseholds(world, Players.Human);
         bool money = Economy.HasMoney(world, Players.Human);
         bool market = Economy.TryGetMarket(world, Players.Human, out var marketplace);
-        Civics.TryGet(world, Players.Human, out var civEntity);
+        if (!Civics.TryGet(world, Players.Human, out var civEntity)) return;
         var civ = civEntity.GetComponent<Civilization>();
 
         _stage.Text = !families ? "Shared stores: the band pools everything it gathers. Private property comes later (R)."
@@ -145,17 +158,26 @@ public partial class EconomyPanel : CanvasLayer
             : $"Barter: {state.BarterMatched} of {state.BarterWants} wants found a swap on the last market day." +
               (state.Medium >= 0 ? $" {content.Goods[state.Medium].Name} is taken as payment by people who don't need it: early money." : "") +
               " Values below are what goods were swapped at.";
-        if (_rows.Count == 0)
+        if (_prices.GetChildCount() == 0)
         {
-            foreach (var header in new[] { "Good", money ? "Price" : "Value", "Change", "Sold", "Recent" })
-                _prices.AddChild(new Label { Text = header, Modulate = Dim });
+            foreach (var header in new[] { "Good", "Price", "Change", "Sold", "Recent" })
+            {
+                var label = new Label { Text = header, Modulate = Dim };
+                if (header == "Price") _priceHeader = label;
+                _prices.AddChild(label);
+            }
         }
+        // Barter values become prices once coins arrive.
+        _priceHeader!.Text = money ? "Price" : "Value";
         for (int g = 0; g < content.Goods.Count; g++)
         {
             if (state.Price[g] == 0) continue;
             if (!_rows.TryGetValue(g, out var row))
             {
-                _prices.AddChild(new Label { Text = content.Goods[g].Name, CustomMinimumSize = new Vector2(70, 0) });
+                var name = new HBoxContainer { CustomMinimumSize = new Vector2(90, 0), TooltipText = content.Goods[g].Name };
+                name.AddChild(Art.IconRect(content.Goods[g].Id, 22, content.Goods[g].Name));
+                name.AddChild(new Label { Text = content.Goods[g].Name, MouseFilter = Control.MouseFilterEnum.Pass });
+                _prices.AddChild(name);
                 row = (new Label { CustomMinimumSize = new Vector2(60, 0) }, new Label { CustomMinimumSize = new Vector2(60, 0) },
                     new Label { CustomMinimumSize = new Vector2(40, 0) }, new Control { CustomMinimumSize = new Vector2(180, 22) });
                 int good = g;
@@ -190,15 +212,17 @@ public partial class EconomyPanel : CanvasLayer
     {
         var content = world.Content;
         var store = Stores.Totals(world, Players.Human);
-        string goods = string.Join(", ", Enumerable.Range(0, store.Length).Where(g => store[g] > 0)
-            .OrderByDescending(g => store[g]).Take(6).Select(g => $"{store[g]} {content.Goods[g].Name.ToLowerInvariant()}"));
+        _publicStores.Clear();
+        _publicStores.AddText("Public stores:  ");
+        if (store.Any(n => n > 0)) Art.AddGoods(_publicStores, world, store);
+        else _publicStores.AddText("empty");
         var last = civ.LastLedger;
         string accounts = money
             ? $"Last year: market tax {last[(int)LedgerEntry.MarketTax]}, tariffs {last[(int)LedgerEntry.Tariffs]}, minted {last[(int)LedgerEntry.Minted]}, " +
               $"sales {last[(int)LedgerEntry.Sales]}  ·  wages {last[(int)LedgerEntry.Wages]}, purchases {last[(int)LedgerEntry.Purchases]}"
             : $"Last year: {last[(int)LedgerEntry.Tribute]} goods received as tribute";
         _treasuryText.Text = (money ? $"Coins {civEntity.GetComponent<Trader>().Coins}  ·  public wage {civ.PublicWage} per 100 ticks\n" : "Public workers are paid in food from the public stores.\n") +
-                             $"Public stores: {(goods.Length > 0 ? goods : "empty")}\n{accounts}";
+                             accounts;
         _marketTaxRow.Visible = money;
         _qualityRow.Visible = money;
         _updating = true;

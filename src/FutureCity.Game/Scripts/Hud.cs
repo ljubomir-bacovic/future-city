@@ -18,17 +18,21 @@ public partial class Hud : CanvasLayer
     private Label _timeLabel = null!;
     private Label _foodLabel = null!;
     private Label _peopleLabel = null!;
-    private Label _goodsLabel = null!;
+    private HBoxContainer _goodsRow = null!;
+    private readonly System.Collections.Generic.Dictionary<int, (HBoxContainer Row, Label Value)> _goods = [];
     private Label _seasonLabel = null!;
+    private TextureRect _seasonIcon = null!;
     private Button _eraButton = null!;
     private Label _banner = null!;
     private Tween? _bannerTween;
     private ResearchPanel _research = null!;
     private EconomyPanel _economy = null!;
     private Button _economyButton = null!;
-    private Label _moneyLabel = null!;
+    private HBoxContainer _coinsRow = null!, _pricesRow = null!, _moodRow = null!;
+    private Label _coinsLabel = null!, _pricesLabel = null!, _moodLabel = null!;
     private PanelContainer _selectionPanel = null!;
     private Label _selectionLabel = null!;
+    private RichTextLabel _selectionGoods = null!;
     private Label _gameLabel = null!;
     private Label _toast = null!;
     private Button _pauseButton = null!;
@@ -63,7 +67,7 @@ public partial class Hud : CanvasLayer
 
     private void BuildLayout()
     {
-        var bar = new PanelContainer { Name = "TopBar" };
+        var bar = new PanelContainer { Name = "TopBar", TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps };
         bar.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopWide);
         AddChild(bar);
 
@@ -74,8 +78,17 @@ public partial class Hud : CanvasLayer
         _eraButton = MakeButton("", () => _research.Toggle());
         _eraButton.TooltipText = "Era and discoveries (R)";
         row.AddChild(_eraButton);
-        _seasonLabel = new Label { CustomMinimumSize = new Vector2(110, 0) };
-        row.AddChild(_seasonLabel);
+        var season = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Pass };
+        season.AddThemeConstantOverride("separation", 4);
+        _seasonIcon = new TextureRect
+        {
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            CustomMinimumSize = new Vector2(22, 22), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter, MouseFilter = Control.MouseFilterEnum.Pass,
+        };
+        season.AddChild(_seasonIcon);
+        _seasonLabel = new Label { CustomMinimumSize = new Vector2(64, 0), MouseFilter = Control.MouseFilterEnum.Pass };
+        season.AddChild(_seasonLabel);
+        row.AddChild(season);
         row.AddChild(new VSeparator());
         _timeLabel = new Label { CustomMinimumSize = new Vector2(48, 0), MouseFilter = Control.MouseFilterEnum.Pass };
         row.AddChild(_timeLabel);
@@ -91,22 +104,23 @@ public partial class Hud : CanvasLayer
         }
 
         row.AddChild(new VSeparator());
-        _foodLabel = new Label { CustomMinimumSize = new Vector2(90, 0), TooltipText = "Meals in the shared stores (all foods by their food value)" };
-        _foodLabel.MouseFilter = Control.MouseFilterEnum.Pass;
-        row.AddChild(_foodLabel);
-        _peopleLabel = new Label { TooltipText = "People (children in brackets) / people the camp and huts can shelter" };
-        _peopleLabel.MouseFilter = Control.MouseFilterEnum.Pass;
-        row.AddChild(_peopleLabel);
-        _goodsLabel = new Label { TooltipText = "Goods in the shared stores" };
-        _goodsLabel.MouseFilter = Control.MouseFilterEnum.Pass;
-        row.AddChild(_goodsLabel);
+        var food = Art.IconValue("food", "Food: meals in the shared stores (all foods by their food value)", out _foodLabel);
+        _foodLabel.CustomMinimumSize = new Vector2(40, 0);
+        row.AddChild(food);
+        row.AddChild(Art.IconValue("people", "People (children in brackets) / people the camp and huts can shelter", out _peopleLabel));
+        _goodsRow = new HBoxContainer();
+        _goodsRow.AddThemeConstantOverride("separation", 12);
+        row.AddChild(_goodsRow);
         row.AddChild(new VSeparator());
         _economyButton = MakeButton("Economy", () => _economy.Toggle());
         _economyButton.TooltipText = "Markets, prices, treasury and taxes (E)";
         row.AddChild(_economyButton);
-        _moneyLabel = new Label { MouseFilter = Control.MouseFilterEnum.Pass,
-            TooltipText = "Treasury coins · price index (100 = prices when coins came in) · average happiness (0-100)" };
-        row.AddChild(_moneyLabel);
+        _coinsRow = Art.IconValue("coins", "Coins in the treasury", out _coinsLabel);
+        row.AddChild(_coinsRow);
+        _pricesRow = Art.IconValue("prices", "Price index: 100 = prices when coins came in", out _pricesLabel);
+        row.AddChild(_pricesRow);
+        _moodRow = Art.IconValue("happiness", "Average happiness (0-100)", out _moodLabel);
+        row.AddChild(_moodRow);
 
         row.AddChild(new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
         _gameLabel = new Label { Modulate = new Color(1, 1, 1, 0.7f) };
@@ -126,12 +140,17 @@ public partial class Hud : CanvasLayer
         _banner.GrowHorizontal = Control.GrowDirection.Both;
         AddChild(_banner);
 
-        _selectionPanel = new PanelContainer { Visible = false };
+        _selectionPanel = new PanelContainer { Visible = false, TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps };
         _selectionPanel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomLeft);
         _selectionPanel.Position += new Vector2(8, -40);
         _selectionPanel.GrowVertical = Control.GrowDirection.Begin;
+        var selectionRows = new VBoxContainer();
+        _selectionPanel.AddChild(selectionRows);
         _selectionLabel = new Label();
-        _selectionPanel.AddChild(_selectionLabel);
+        selectionRows.AddChild(_selectionLabel);
+        // Goods carried, held or still needed, as icons.
+        _selectionGoods = new RichTextLabel { FitContent = true, AutowrapMode = TextServer.AutowrapMode.Off, ScrollActive = false, Visible = false };
+        selectionRows.AddChild(_selectionGoods);
         AddChild(_selectionPanel);
 
         var help = new Label
@@ -210,31 +229,45 @@ public partial class Hud : CanvasLayer
         var census = Bands.CensusOf(world, Players.Human);
         bool families = Economy.HasHouseholds(world, Players.Human);
         var stock = Economy.Holdings(world, Players.Human); // the shared stores, or everything families and the treasury hold
-        _foodLabel.Text = $"Food {Stores.MealsIn(world, stock)}";
-        _foodLabel.TooltipText = families ? "Meals held by families and the treasury" : "Meals in the shared stores (all foods by their food value)";
-        _goodsLabel.TooltipText = families ? "Goods held by families and the treasury" : "Goods in the shared stores";
+        _foodLabel.Text = Stores.MealsIn(world, stock).ToString();
+        _foodLabel.TooltipText = families ? "Food: meals held by families and the treasury" : "Food: meals in the shared stores (all foods by their food value)";
         _economyButton.Visible = families;
-        _moneyLabel.Visible = families;
-        if (families)
+        bool money = families && Economy.HasMoney(world, Players.Human);
+        _coinsRow.Visible = money;
+        _pricesRow.Visible = money;
+        _moodRow.Visible = families;
+        if (money && Civics.TryGet(world, Players.Human, out var civ))
         {
-            int mood = Society.AverageHappiness(world, Players.Human);
-            string money = "";
-            if (Economy.HasMoney(world, Players.Human) && Civics.TryGet(world, Players.Human, out var civ))
-            {
-                Economy.TryGetMarket(world, Players.Human, out var market);
-                money = $"Coins {civ.GetComponent<Trader>().Coins} · Prices {(market.IsNull ? 0 : Markets.Cpi(world, market))} · ";
-            }
-            _moneyLabel.Text = $"{money}Mood {mood}";
+            Economy.TryGetMarket(world, Players.Human, out var market);
+            _coinsLabel.Text = civ.GetComponent<Trader>().Coins.ToString();
+            _pricesLabel.Text = (market.IsNull ? 0 : Markets.Cpi(world, market)).ToString();
         }
+        if (families) _moodLabel.Text = Society.AverageHappiness(world, Players.Human).ToString();
         string children = census.Children > 0 ? $" ({census.Children})" : "";
-        _peopleLabel.Text = $"People {census.Total}{children} / {Buildings.ShelterOf(world, Players.Human)}";
-        // Non-food goods appear once the band has any (progressive disclosure).
-        _goodsLabel.Text = string.Join("  ", Enumerable.Range(0, stock.Length)
-            .Where(g => world.Content.Goods[g].Nutrition == 0 && stock[g] > 0)
-            .Take(5) // the rest are in the economy panel
-            .Select(g => $"{world.Content.Goods[g].Name} {stock[g]}"));
+        _peopleLabel.Text = $"{census.Total}{children} / {Buildings.ShelterOf(world, Players.Human)}";
+        // Non-food goods appear once the band has any (progressive disclosure); food is in the food count.
+        string holder = families ? "held by families and the treasury" : "in the shared stores";
+        for (int g = 0; g < stock.Length; g++)
+        {
+            var good = world.Content.Goods[g];
+            bool show = good.Nutrition == 0 && stock[g] > 0;
+            if (!_goods.TryGetValue(g, out var item))
+            {
+                if (!show) continue;
+                var goodRow = Art.IconValue(good.Id, good.Name, out var value);
+                _goodsRow.AddChild(goodRow);
+                item = (goodRow, value);
+                _goods[g] = item;
+            }
+            item.Row.Visible = show;
+            item.Value.Text = stock[g].ToString();
+            item.Row.TooltipText = item.Value.TooltipText = $"{good.Name} {holder}";
+        }
         _eraButton.Text = Civics.EraOf(world, Players.Human).Def.Name;
-        _seasonLabel.Text = $"{Calendar.Season(world).Name}, year {Calendar.Year(world)}";
+        var season = Calendar.Season(world);
+        _seasonIcon.Texture = Art.Icon(season.Id);
+        _seasonLabel.Text = $"Year {Calendar.Year(world)}";
+        _seasonIcon.TooltipText = _seasonLabel.TooltipText = $"{season.Name}, year {Calendar.Year(world)}";
     }
 
     private void RefreshSelection()
@@ -243,9 +276,12 @@ public partial class Hud : CanvasLayer
         var selected = _selection.Selected;
         _selectionPanel.Visible = world != null && (selected.Count > 0 || _selection.SelectedBuilding != 0);
         if (!_selectionPanel.Visible) return;
+        _selectionGoods.Clear();
+        _selectionGoods.Visible = false;
         if (selected.Count == 0 && world!.TryGetEntity(_selection.SelectedBuilding, out var building))
         {
             _selectionLabel.Text = DescribeBuilding(world, building);
+            ShowBuildingGoods(world, building);
             return;
         }
 
@@ -256,8 +292,15 @@ public partial class Hud : CanvasLayer
             bool adult = Bands.IsAdult(world, c);
             string doing = adult ? Describe(one.GetComponent<Order>()) : "Too young to work";
             _selectionLabel.Text = $"{(adult ? "Villager" : "Child")}, age {Bands.AgeInYears(world, c)}  ·  {doing}\n" +
-                                   $"Health {c.Health * 100 / rules.MaxHealth}%  ·  Hunger {c.Hunger * 100 / rules.MaxHunger}%" +
-                                   (c.Carried > 0 ? $"  ·  Carrying {c.Carried} {world.Content.Goods[c.CarriedGood].Name.ToLowerInvariant()}" : "");
+                                   $"Health {c.Health * 100 / rules.MaxHealth}%  ·  Hunger {c.Hunger * 100 / rules.MaxHunger}%";
+            if (c.Carried > 0)
+            {
+                var carried = new int[world.Content.Goods.Count];
+                carried[c.CarriedGood] = c.Carried;
+                _selectionGoods.AddText("Carrying ");
+                Art.AddGoods(_selectionGoods, world, carried);
+                _selectionGoods.Visible = true;
+            }
             if (Economy.HasHouseholds(world, Players.Human))
             {
                 string cls = adult ? Society.ClassNames[(int)Society.ClassOf(world, one, Society.NobleHomes(world, Players.Human))] + "  ·  " : "";
@@ -304,11 +347,9 @@ public partial class Hud : CanvasLayer
         var lines = new System.Collections.Generic.List<string>();
         if (!Buildings.IsComplete(building))
         {
-            var missing = Buildings.MissingMaterials(world, building);
-            string needs = string.Join(", ", missing.Select((n, g) => (n, g)).Where(x => x.n > 0)
-                .Select(x => $"{x.n} {world.Content.Goods[x.g].Name.ToLowerInvariant()}"));
+            bool needs = Buildings.MissingMaterials(world, building).Any(n => n > 0);
             lines.Add($"{type.Def.Name} (construction site, {Buildings.ConstructionPercent(world, building)}%)");
-            lines.Add(needs.Length > 0 ? $"Still needs {needs}" : "All materials delivered");
+            if (!needs) lines.Add("All materials delivered");
             lines.Add($"{Buildings.WorkersAt(world, building.Id)} builders · right-click with villagers selected to build");
             return string.Join("\n", lines);
         }
@@ -333,11 +374,27 @@ public partial class Hud : CanvasLayer
             };
             lines.Add($"{stage} · soil {field.Fertility}% (natural {field.NaturalFertility}%)");
         }
-        var stock = building.GetComponent<Inventory>().Amounts;
-        string held = string.Join(", ", stock.Select((n, g) => (n, g)).Where(x => x.n > 0)
-            .Select(x => $"{x.n} {world.Content.Goods[x.g].Name.ToLowerInvariant()}"));
-        if (held.Length > 0) lines.Add((Stores.IsStore(world, building) ? "Holds " : "Here: ") + held);
         return string.Join("\n", lines);
+    }
+
+    // What a site still needs, or what a building holds, as icons.
+    private void ShowBuildingGoods(World world, Friflo.Engine.ECS.Entity building)
+    {
+        if (!Buildings.IsComplete(building))
+        {
+            var missing = Buildings.MissingMaterials(world, building);
+            if (!missing.Any(n => n > 0)) return;
+            _selectionGoods.AddText("Still needs ");
+            Art.AddGoods(_selectionGoods, world, missing);
+        }
+        else
+        {
+            var stock = building.GetComponent<Inventory>().Amounts;
+            if (!stock.Any(n => n > 0)) return;
+            _selectionGoods.AddText(Stores.IsStore(world, building) ? "Holds " : "Here: ");
+            Art.AddGoods(_selectionGoods, world, stock);
+        }
+        _selectionGoods.Visible = true;
     }
 
     private void RefreshAll()
