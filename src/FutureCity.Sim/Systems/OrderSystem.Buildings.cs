@@ -73,9 +73,19 @@ public sealed partial class OrderSystem
     {
         ref var order = ref unit.GetComponent<Order>();
         if (unit.GetComponent<Citizen>().Carried > 0) { order.Stage = OrderStage.Deliver; return; }
+        int player = unit.GetComponent<Owner>().Player;
+        if (Civics.HasAutoJobs(world, player))
+        {
+            var facts = Civics.FactsOf(world, player);
+            if (!Enumerable.Range(0, world.Content.Techs.Count).Any(t => Civics.IsDiscoverable(world, player, t, facts)))
+            {
+                order = default; // nothing left to think about: find other work
+                return;
+            }
+        }
         if (ApproachEntity(world, unit, shrine, reach: 1) != Progress.Arrived) return;
         order.Stage = OrderStage.Work;
-        Civics.RecordWork(world, unit.GetComponent<Owner>().Player, WorkKind.Research, type.Def.Research);
+        Civics.RecordWork(world, player, WorkKind.Research, type.Def.Research);
     }
 
     // Fetch inputs into the workshop, turn them into outputs, carry the outputs to a store.

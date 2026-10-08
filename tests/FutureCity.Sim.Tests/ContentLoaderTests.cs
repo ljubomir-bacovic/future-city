@@ -137,7 +137,7 @@ public class ContentLoaderTests
     public void Unknown_goods_are_reported()
     {
         var files = Files();
-        files["buildings.json"] = files["buildings.json"].Replace("\"cost\": { \"wood\": 30 }", "\"cost\": { \"gold\": 30 }");
+        files["buildings.json"] = files["buildings.json"].Replace("\"cost\": { \"wood\": 20 }", "\"cost\": { \"gold\": 20 }");
         files["nature.json"] = files["nature.json"].Replace("\"good\": \"stone\"", "\"good\": \"marble\"");
         var errors = LoadFails(files).Errors;
         Assert.Contains(errors, e => e.StartsWith("buildings.json: building 'storehouse' cost refers to unknown good 'gold'"));

@@ -6,7 +6,7 @@
   "terrains": [
     { "id": "grass",  "name": "Grassland", "color": "#7fae5b", "walkable": true,  "buildable": true,  "moveCost": 100 },
     { "id": "forest", "name": "Forest",    "color": "#4a7a3d", "walkable": true,  "buildable": false, "moveCost": 160,
-      "resource": { "good": "wood", "amount": 40, "ticksPerUnit": 5, "work": "woodcut", "depletedTerrain": "grass" } },
+      "resource": { "good": "wood", "amount": 40, "ticksPerUnit": 4, "work": "woodcut", "depletedTerrain": "grass" } },
     { "id": "water",  "name": "Water",     "color": "#3f7fbf", "walkable": false, "buildable": false, "moveCost": 100 }
   ]
 }

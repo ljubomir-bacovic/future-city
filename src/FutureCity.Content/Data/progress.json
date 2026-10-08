@@ -17,14 +17,14 @@
     {
       "id": "toolmaking", "name": "Toolmaking",
       "preconditions": "gathered.wood >= 120 && gathered.stone >= 40 && building.storehouse >= 1",
-      "cost": 1500,
+      "cost": 2500,
       "activity": { "woodcut": 60, "quarry": 100, "build": 40 },
       "codex": "Stone tools are older than our species, but making good ones takes time and skill: the right stone, a wooden haft, binding and practice. Only a settled group with stored wood and stone, and food to spare, can let someone spend whole days making tools for others. Better tools then make every other kind of work faster."
     },
     {
       "id": "farming", "name": "Farming",
       "preconditions": "gathered.berries >= 400 && building.hut >= 2 && population >= 10",
-      "cost": 2500,
+      "cost": 4000,
       "activity": { "forage": 100, "build": 20 },
       "codex": "Farming did not start with a single idea. Foragers already knew wild plants intimately. Once people stayed in one place, with more mouths to feed than wild food nearby could support, it paid to sow seeds and wait for a harvest. Farming means more food from less land, but harder work, and a bad season can bring famine."
     }
@@ -34,7 +34,7 @@
   "institutions": [
     {
       "id": "chiefdom", "name": "Chiefdom",
-      "preconditions": "population >= 12 && building.hut >= 3 && food >= population * 15",
+      "preconditions": "population >= 10 && building.hut >= 3 && food >= population * 15",
       "foodCost": 120,             // meals spent on the feast that confirms the chief
       "autoJobs": true,            // the chief organizes labour: idle people take up work where it is needed
       "codex": "In small bands everyone decides together. As a settled village grows, someone is needed to settle disputes, organize shared work and manage the surplus. A chief gains standing by giving feasts and sharing food, and in return directs labour where it is needed. The village becomes more organized, but power and wealth begin to concentrate."

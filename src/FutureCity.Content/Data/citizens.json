@@ -24,7 +24,7 @@
   // A child is born when the band has a food surplus and shelter to spare.
   "growth": {
     "checkIntervalTicks": 100,
-    "foodPerCapita": 25,        // store must hold this many meals per person (plus the birth cost)
+    "foodPerCapita": 15,        // store must hold this many meals per person (plus the birth cost)
     "birthFoodCost": 40,
     "birthChancePercent": 35,
     "populationCap": 100
@@ -33,9 +33,9 @@
   // Automatic job assignment (once an institution with autoJobs is established).
   "jobs": {
     "checkIntervalTicks": 20,
-    "foodTargetPerCapita": 30,  // meals in store per person the band aims for
-    "buildPriority": 40,        // demand score of helping at a construction site
-    "researchPriority": 15,     // demand score of working at a shrine while something can be discovered
+    "foodTargetPerCapita": 25,  // meals in store per person the band aims for
+    "buildPriority": 60,        // demand score of helping at a construction site
+    "researchPriority": 30,     // demand score of working at a shrine while something can be discovered
     "maxBuildersPerSite": 3
   }
 }

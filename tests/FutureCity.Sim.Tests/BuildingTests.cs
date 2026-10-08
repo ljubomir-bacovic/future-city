@@ -10,6 +10,9 @@ public class BuildingTests
 
     private static int Kind(string id) => TestSupport.Content.BuildingIndex(id);
 
+    // What a hut costs, from content.
+    private static int HutCost(string good) => TestSupport.Content.Buildings[Kind("hut")].Cost[GameSupport.Good(good)];
+
     [Fact]
     public void Placement_follows_the_rules()
     {
@@ -78,11 +81,12 @@ public class BuildingTests
         GameSupport.Run(sim, 2);
 
         Assert.Contains(events, e => e.Kind == SimEventKind.BuildingCompleted && e.Entity == hut.Id && e.Detail == Kind("hut"));
-        Assert.Equal(5, GameSupport.Amount(camp, "wood"));
-        Assert.Equal(0, GameSupport.Amount(camp, "clay"));
+        Assert.Equal(20 - HutCost("wood"), GameSupport.Amount(camp, "wood"));
+        Assert.Equal(10 - HutCost("clay"), GameSupport.Amount(camp, "clay"));
         Assert.All(hut.GetComponent<Inventory>().Amounts, a => Assert.Equal(0, a));
         Assert.All(builders, b => Assert.Equal(OrderKind.Idle, b.GetComponent<Order>().Kind));
-        Assert.Equal(TestSupport.Content.Citizens.Camp.Shelter + 4, Buildings.ShelterOf(sim.World, Me));
+        Assert.Equal(TestSupport.Content.Citizens.Camp.Shelter + TestSupport.Content.Buildings[Kind("hut")].Def.Shelter,
+            Buildings.ShelterOf(sim.World, Me));
     }
 
     [Fact]
@@ -98,7 +102,7 @@ public class BuildingTests
         GameSupport.Run(sim, 800);
 
         Assert.False(Buildings.IsComplete(hut));
-        Assert.Equal(15, GameSupport.Amount(hut, "wood"));
+        Assert.Equal(HutCost("wood"), GameSupport.Amount(hut, "wood"));
         Assert.InRange(Buildings.ConstructionPercent(sim.World, hut), 1, 49);
         Assert.Equal(OrderKind.Build, builder.GetComponent<Order>().Kind);
 

@@ -5,17 +5,17 @@
   "buildings": [
     {
       "id": "hut", "name": "Hut", "color": "#a07a4a", "size": 1,
-      "cost": { "wood": 15, "clay": 10 }, "buildWork": 120, "requires": "",
+      "cost": { "wood": 10, "clay": 8 }, "buildWork": 90, "requires": "",
       "shelter": 4                 // people it houses
     },
     {
       "id": "storehouse", "name": "Storehouse", "color": "#8a6a44", "size": 2,
-      "cost": { "wood": 30 }, "buildWork": 150, "requires": "",
+      "cost": { "wood": 20 }, "buildWork": 100, "requires": "",
       "storage": true              // workers drop goods here; a store near the work saves walking
     },
     {
       "id": "shrine", "name": "Shrine", "color": "#b8a27a", "size": 1,
-      "cost": { "wood": 15, "stone": 15 }, "buildWork": 120, "requires": "building.storehouse >= 1",
+      "cost": { "wood": 10, "stone": 10 }, "buildWork": 90, "requires": "building.storehouse >= 1",
       "workers": 2,
       "research": 1                // research points per worker per tick, toward the chosen discovery
     },
