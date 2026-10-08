@@ -6,5 +6,15 @@
     { "id": "large",  "name": "Large",  "width": 128, "height": 128 }
   ],
   "defaultMapSize": "small",
-  "defaultTerrain": "grass"
+  "defaultTerrain": "grass",
+
+  // Seeded terrain generation: lakes and forests from smooth noise, then a cleared start area for the band.
+  "mapGeneration": {
+    "waterTerrain": "water",
+    "forestTerrain": "forest",
+    "waterPercent": 12,
+    "forestPercent": 22,
+    "featureSize": 16,      // size of lakes and woods in tiles (noise cell size)
+    "startClearRadius": 4   // open grassland around the starting camp
+  }
 }

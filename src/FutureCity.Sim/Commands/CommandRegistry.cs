@@ -20,8 +20,12 @@ public sealed class CommandRegistry
     public static CommandRegistry CreateDefault()
     {
         var registry = new CommandRegistry();
-        // Built-in game commands are registered here as they are added (Phase 1 onwards).
-        return registry;
+        // Names are part of the save format: never rename them.
+        return registry
+            .Register<MoveUnits>("moveUnits")
+            .Register<Gather>("gather")
+            .Register<Hunt>("hunt")
+            .Register<ReturnToCamp>("returnToCamp");
     }
 
     /// <summary>Registers a command type under a stable name.</summary>

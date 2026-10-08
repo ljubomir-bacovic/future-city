@@ -14,3 +14,7 @@ TestResults/
 *.tmp
 Thumbs.db
 .DS_Store
+
+# Godot .uid files belong only to the Godot project; others come from opening the repo root in the editor
+*.uid
+!src/FutureCity.Game/**/*.uid

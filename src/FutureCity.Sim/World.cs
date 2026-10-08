@@ -1,6 +1,7 @@
 using Friflo.Engine.ECS;
 using FutureCity.Sim.Content;
 using FutureCity.Sim.Map;
+using FutureCity.Sim.Navigation;
 using FutureCity.Sim.Random;
 
 namespace FutureCity.Sim;
@@ -43,6 +44,54 @@ public sealed class World
 
     /// <summary>Id the next created entity will get. Ids are never reused.</summary>
     public int NextEntityId { get; private set; }
+
+    /// <summary>Notable things that happened during the last tick. Output only: cleared every tick and never saved.</summary>
+    public IReadOnlyList<SimEvent> Events => EventList;
+
+    internal List<SimEvent> EventList { get; } = [];
+
+    /// <summary>Route planner over <see cref="Map"/>. Holds only scratch buffers, no game state.</summary>
+    internal Pathfinder Pathfinder => _pathfinder ??= new Pathfinder(Map, Content);
+
+    private Pathfinder? _pathfinder;
+
+    /// <summary>Connected-area label of every tile (0 = blocked), derived from <see cref="Map"/>. Not game state.</summary>
+    internal int[] RegionLabels
+    {
+        get
+        {
+            if (_regionLabels == null || _regionVersion != Map.Version)
+            {
+                _regionLabels = Regions.Label(Map, Pathfinder, out _);
+                _regionVersion = Map.Version;
+            }
+            return _regionLabels;
+        }
+    }
+
+    private int[]? _regionLabels;
+    private int _regionVersion;
+
+    /// <summary>Whether a unit standing on (x1, y1) could walk to (x2, y2).</summary>
+    public bool CanReach(int x1, int y1, int x2, int y2)
+    {
+        if (!Map.Contains(x1, y1) || !Map.Contains(x2, y2)) return false;
+        var labels = RegionLabels;
+        int a = labels[y1 * Map.Width + x1];
+        return a != 0 && a == labels[y2 * Map.Width + x2];
+    }
+
+    /// <summary>Returns the live entity with the given id, if it exists.</summary>
+    public bool TryGetEntity(int id, out Entity entity)
+    {
+        if (id > 0 && Store.TryGetEntityById(id, out entity) && !entity.IsNull)
+            return true;
+        entity = default;
+        return false;
+    }
+
+    internal void Emit(SimEventKind kind, int player, int entity, int x, int y) =>
+        EventList.Add(new SimEvent(kind, player, entity, x, y));
 
     /// <summary>Creates a new entity with the next deterministic id.</summary>
     public Entity CreateEntity()

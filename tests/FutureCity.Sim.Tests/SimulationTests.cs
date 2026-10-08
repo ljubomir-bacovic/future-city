@@ -13,7 +13,7 @@ public class SimulationTests
         var size = TestSupport.Content.MapSize("small");
         Assert.Equal(size.Width, sim.World.Map.Width);
         Assert.Equal(size.Height, sim.World.Map.Height);
-        Assert.Equal(0, sim.World.Store.Count);
+        Assert.Equal(sim.World.NextEntityId - 1, sim.World.Store.Count); // the populated wilds and the band
     }
 
     [Fact]
@@ -36,14 +36,15 @@ public class SimulationTests
     public void Commands_execute_on_their_tick_and_are_logged()
     {
         var sim = TestSupport.NewSimWithoutSystems();
+        int initial = sim.World.Store.Count;
         sim.Enqueue(new SpawnWanderers(3, 5, 5));          // next tick (1)
         sim.Enqueue(new SpawnWanderers(2, 5, 5), 5);
         sim.Step();
-        Assert.Equal(3, sim.World.Store.Count);
+        Assert.Equal(initial + 3, sim.World.Store.Count);
         sim.Step(3);
-        Assert.Equal(3, sim.World.Store.Count);
+        Assert.Equal(initial + 3, sim.World.Store.Count);
         sim.Step();
-        Assert.Equal(5, sim.World.Store.Count);
+        Assert.Equal(initial + 5, sim.World.Store.Count);
 
         Assert.Empty(sim.PendingCommands);
         Assert.Equal([1L, 5L], sim.CommandLog.Select(c => c.Tick));
@@ -81,11 +82,12 @@ public class SimulationTests
     public void Entity_ids_are_sequential_and_never_reused()
     {
         var sim = TestSupport.NewSim();
+        int first = sim.World.NextEntityId;
         var a = sim.World.CreateEntity();
         var b = sim.World.CreateEntity();
         a.DeleteEntity();
         var c = sim.World.CreateEntity();
-        Assert.Equal([1, 2, 3], new[] { a.Id, b.Id, c.Id });
+        Assert.Equal([first, first + 1, first + 2], new[] { a.Id, b.Id, c.Id });
     }
 
     private sealed record UnregisteredCommand : Command

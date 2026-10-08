@@ -1,7 +1,9 @@
 {
   // Terrain types. Colors are placeholder art until the illustrated tiles arrive (Phase 8).
+  // moveCost: walking cost in percent of open grassland (forest undergrowth slows people down).
   "terrains": [
-    { "id": "grass", "name": "Grassland", "color": "#7fae5b", "walkable": true,  "buildable": true },
-    { "id": "water", "name": "Water",     "color": "#3f7fbf", "walkable": false, "buildable": false }
+    { "id": "grass",  "name": "Grassland", "color": "#7fae5b", "walkable": true,  "buildable": true,  "moveCost": 100 },
+    { "id": "forest", "name": "Forest",    "color": "#4a7a3d", "walkable": true,  "buildable": false, "moveCost": 160 },
+    { "id": "water",  "name": "Water",     "color": "#3f7fbf", "walkable": false, "buildable": false, "moveCost": 100 }
   ]
 }

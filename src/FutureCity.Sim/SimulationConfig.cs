@@ -28,6 +28,14 @@ public sealed class SimulationConfig
 
     private static ISimSystem[] DefaultSystems() =>
     [
-        // Systems are added here in execution order as gameplay is built (Phase 1 onwards).
+        // Execution order matters: orders decide where people go, movement moves them, then needs and life events.
+        new OrderSystem(),
+        new MovementSystem(),
+        new NeedsSystem(),
+        new AgingSystem(),
+        new PopulationSystem(),
+        new PlantGrowthSystem(),
+        new AnimalSystem(),
+        new CarcassSystem(),
     ];
 }
