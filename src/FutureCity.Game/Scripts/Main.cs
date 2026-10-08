@@ -16,7 +16,8 @@ namespace FutureCity.Game;
 /// Command-line options (after "--"): --seed=N, --map=ID, --zoom=F, --screenshot=PATH, --frames=N,
 /// --select-all (select the band at start), --autoplay[=forage] (a stand-in computer player runs the band: by default
 /// the settler that builds and farms), --skip=N (simulate N ticks before showing the game; useful with --autoplay for
-/// screenshots), --research (open the discoveries panel), --place=ID (start placing a building), --select-building=ID.
+/// screenshots), --research (open the discoveries panel), --economy (open the economy panel), --place=ID (start
+/// placing a building), --select-building=ID.
 /// </summary>
 public partial class Main : Node2D
 {
@@ -29,6 +30,7 @@ public partial class Main : Node2D
     private SelectionController _selection = null!;
     private BuildMenu _buildMenu = null!;
     private ResearchPanel _research = null!;
+    private EconomyPanel _economy = null!;
     private RtsCamera _camera = null!;
     private Hud _hud = null!;
     private LaunchOptions _options = null!;
@@ -53,6 +55,7 @@ public partial class Main : Node2D
         _camera = new RtsCamera { Name = "Camera", EdgeScrollEnabled = _options.ScreenshotPath == null };
         _hud = new Hud { Name = "Hud" };
         _research = new ResearchPanel { Name = "Research" };
+        _economy = new EconomyPanel { Name = "Economy" };
         AddChild(_driver);
         AddChild(_mapView);
         AddChild(_entityView);
@@ -61,6 +64,7 @@ public partial class Main : Node2D
         AddChild(_camera);
         AddChild(_hud);
         AddChild(_research);
+        AddChild(_economy);
         _camera.MakeCurrent();
 
         _driver.SimulationChanged += OnSimulationChanged;
@@ -68,7 +72,8 @@ public partial class Main : Node2D
         _entityView.Initialize(_driver, _mapView, _selection);
         _selection.Initialize(_driver, _entityView, _mapView);
         _research.Initialize(_driver);
-        _hud.Initialize(_driver, _selection, _research);
+        _economy.Initialize(_driver);
+        _hud.Initialize(_driver, _selection, _research, _economy);
         _buildMenu.Initialize(_driver, _mapView, _entityView);
         _buildMenu.Message += _hud.ShowMessage;
 
@@ -94,6 +99,8 @@ public partial class Main : Node2D
             _selection.SelectAllOwn();
         if (_options.Research)
             _research.Toggle();
+        if (_options.Economy)
+            _economy.Toggle();
         if (_options.Place != null)
             _buildMenu.BeginPlacing(_options.Place);
         if (_options.SelectBuilding != null)
@@ -118,6 +125,7 @@ public partial class Main : Node2D
         else if (@event.IsActionPressed(InputActions.QuickSave)) Save(QuickSavePath, "Game saved");
         else if (@event.IsActionPressed(InputActions.QuickLoad)) Load(QuickSavePath);
         else if (@event.IsActionPressed(InputActions.ToggleResearch)) _research.Toggle();
+        else if (@event.IsActionPressed(InputActions.ToggleEconomy)) _economy.Toggle();
         else return;
         GetViewport().SetInputAsHandled();
     }
@@ -183,7 +191,7 @@ public partial class Main : Node2D
     }
 
     private sealed record LaunchOptions(ulong? Seed, string? MapSize, float? Zoom, string? ScreenshotPath, int ScreenshotFrames,
-        bool SelectAll, string? Autoplay, int SkipTicks, bool Research = false, string? Place = null, string? SelectBuilding = null)
+        bool SelectAll, string? Autoplay, int SkipTicks, bool Research = false, string? Place = null, string? SelectBuilding = null, bool Economy = false)
     {
         public static LaunchOptions Parse(string[] args)
         {
@@ -202,6 +210,7 @@ public partial class Main : Node2D
                     "--select-all" => options with { SelectAll = true },
                     "--autoplay" => options with { Autoplay = value.Length > 0 ? value : "settle" },
                     "--research" => options with { Research = true },
+                    "--economy" => options with { Economy = true },
                     "--place" => options with { Place = value },
                     "--select-building" => options with { SelectBuilding = value },
                     "--skip" => options with { SkipTicks = int.Parse(value, CultureInfo.InvariantCulture) },

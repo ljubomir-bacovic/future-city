@@ -33,7 +33,7 @@
       "startHerds": 1               // guaranteed herds within reach of the starting camp
     }
   ],
-  // Finite raw materials. Clay is found next to water.
+  // Finite raw materials. Clay is found next to water; silver is rare.
   "deposits": [
     {
       "id": "stone_outcrop", "name": "Stone outcrop", "color": "#9a9a92", "good": "stone",
@@ -44,6 +44,11 @@
       "id": "clay_pit", "name": "Clay pit", "color": "#b5683f", "good": "clay",
       "amount": 120, "ticksPerUnit": 5, "work": "dig",
       "clustersPer10kTiles": 8, "minClusterSize": 1, "maxClusterSize": 2, "startClusters": 1, "nearWater": true
+    },
+    {
+      "id": "silver_vein", "name": "Silver vein", "color": "#c8cdd2", "good": "silver",
+      "amount": 80, "ticksPerUnit": 15, "work": "quarry",
+      "clustersPer10kTiles": 3, "minClusterSize": 1, "maxClusterSize": 1, "startClusters": 1, "nearWater": false
     }
   ]
 }

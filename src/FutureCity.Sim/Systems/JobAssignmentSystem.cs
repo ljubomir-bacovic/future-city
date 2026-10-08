@@ -10,9 +10,10 @@ namespace FutureCity.Sim.Systems;
 /// job with the highest demand: building sites, workplaces whose products are short, research while something can be
 /// discovered, or gathering the raw good most needed. Demand is the gap between the stock the band wants per person
 /// and what its stores hold, shared among the people already doing that job. Jobs assigned this way are withdrawn
-/// when their good is no longer needed; the player's own orders are never overridden.
+/// when their good is no longer needed; the player's own orders are never overridden. Once families own their
+/// goods, the chief only assigns public work and families choose their own work by income (see the Households part).
 /// </summary>
-public sealed class JobAssignmentSystem : ISimSystem
+public sealed partial class JobAssignmentSystem : ISimSystem
 {
     /// <inheritdoc />
     public void Update(World world)
@@ -22,8 +23,9 @@ public sealed class JobAssignmentSystem : ISimSystem
         foreach (var civ in World.InIdOrder(world.Store.Query<Civilization, Owner>()))
         {
             int player = civ.GetComponent<Owner>().Player;
-            if (Civics.HasAutoJobs(world, player) && Bands.TryGetCamp(world, player, out var camp))
-                Assign(world, player, camp);
+            if (!Civics.HasAutoJobs(world, player) || !Bands.TryGetCamp(world, player, out var camp)) continue;
+            if (Economy.HasHouseholds(world, player)) AssignHouseholds(world, player, camp);
+            else Assign(world, player, camp);
         }
     }
 
@@ -113,6 +115,12 @@ public sealed class JobAssignmentSystem : ISimSystem
         }
         if (working >= type.Def.Workers) return 0;
 
+        if (type.Def.Mint is { } mint)
+        {
+            int silver = world.Content.SilverGood;
+            bool work = demand.Store[silver] + building.GetComponent<Inventory>().Amounts[silver] >= mint.Silver;
+            return work ? rules.BuildPriority / (1 + working) : 0;
+        }
         if (type.Def.Research > 0)
         {
             var facts = demand.Facts;

@@ -7,7 +7,7 @@ namespace FutureCity.Game;
 
 /// <summary>
 /// Draws the terrain as an isometric tile map. Tiles are placeholder diamonds generated from
-/// the terrain colors in content, and forests get simple drawn trees, until the illustrated art arrives (Phase 8).
+/// the terrain colors in content, and forests get pine trees from <see cref="Art"/>.
 /// </summary>
 public partial class MapView : Node2D
 {
@@ -31,7 +31,9 @@ public partial class MapView : Node2D
     {
         _layer?.QueueFree();
         // ShowBehindParent: the tiles go under the trees this node draws itself.
-        _layer = new TileMapLayer { Name = "Terrain", TileSet = CreateTileSet(world.Content.Terrains), ShowBehindParent = true };
+        _layer = new TileMapLayer { Name = "Terrain", TileSet = CreateTileSet(world.Content.Terrains), ShowBehindParent = true,
+            TextureFilter = TextureFilterEnum.Nearest };
+        TextureFilter = TextureFilterEnum.LinearWithMipmaps; // for the trees
         AddChild(_layer);
         _origin = _layer.MapToLocal(Vector2I.Zero);
         _axisX = _layer.MapToLocal(new Vector2I(1, 0)) - _origin;
@@ -78,6 +80,9 @@ public partial class MapView : Node2D
     {
         foreach (var tree in _trees)
         {
+            // Two kinds of pine, picked by position so the wood never changes.
+            int kind = ((int)tree.X * 7 + (int)tree.Y * 13 & 0x7fffffff) % 3 == 0 ? 1 : 0;
+            if (Art.DrawSprite(this, $"pine{kind}", tree, kind == 0 ? 0.9f : 1f)) continue;
             DrawRect(new Rect2(tree + new Vector2(-1.5f, -6), new Vector2(3, 6)), TrunkColor);
             DrawColoredPolygon([tree + new Vector2(-9, -5), tree + new Vector2(9, -5), tree + new Vector2(0, -26)], TreeShade);
             DrawColoredPolygon([tree + new Vector2(-7, -12), tree + new Vector2(7, -12), tree + new Vector2(0, -30)], TreeColor);

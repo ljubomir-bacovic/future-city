@@ -34,6 +34,7 @@ public class ContentLoaderTests
             ["goods.json"] = Shipped["goods.json"],
             ["buildings.json"] = Shipped["buildings.json"],
             ["progress.json"] = Shipped["progress.json"],
+            ["economy.json"] = Shipped["economy.json"],
         };
 
     private static ContentException LoadFails(Dictionary<string, string> files) =>
@@ -162,6 +163,33 @@ public class ContentLoaderTests
         var files = Files();
         files["progress.json"] = files["progress.json"].Replace("\"forage\": 100", "\"dance\": 100");
         Assert.Contains(LoadFails(files).Errors, e => e.Contains("work 'dance' must be one of"));
+    }
+
+    [Fact]
+    public void Economy_rules_are_checked()
+    {
+        var files = Files();
+        files["economy.json"] = files["economy.json"]
+            .Replace("\"regalia\": [\"silver\"]", "\"regalia\": [\"gold\"]")
+            .Replace("\"default\": 10, \"max\": 50", "\"default\": 60, \"max\": 50")
+            .Replace("\"intervalTicks\": 50", "\"intervalTicks\": 0");
+        var errors = LoadFails(files).Errors;
+        Assert.Contains(errors, e => e.Contains("treasury.regalia refers to unknown good 'gold'"));
+        Assert.Contains(errors, e => e.Contains("taxes.tribute.default is 60"));
+        Assert.Contains(errors, e => e.Contains("market.intervalTicks is 0"));
+    }
+
+    [Fact]
+    public void Workers_need_work_and_conditions_may_use_economy_facts()
+    {
+        var files = Files();
+        files["buildings.json"] = files["buildings.json"].Replace("\"market\": true", "\"storage\": true");
+        Assert.Contains(LoadFails(files).Errors, e => e.Contains("'marketplace' has workers but no work"));
+
+        var content = ContentLoader.Load(Files());
+        foreach (var fact in new[] { "coins", "trades", "happiness", "class.craftsmen", "class.nobility" })
+            Assert.NotNull(content.ResolveFact(fact));
+        Assert.Null(content.ResolveFact("class.pirates"));
     }
 
     [Fact]

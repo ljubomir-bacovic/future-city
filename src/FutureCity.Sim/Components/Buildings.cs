@@ -22,6 +22,8 @@ public struct Building : IComponent
 {
     /// <summary>Index into <see cref="Content.ContentDatabase.Buildings"/>.</summary>
     public int Kind;
+    /// <summary>A workshop's extra output under guilds still to come, in hundredths of a unit.</summary>
+    public int Credit;
 }
 
 /// <summary>Present while a building is still being built; removed when it is complete.</summary>

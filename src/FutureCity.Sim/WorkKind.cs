@@ -24,4 +24,6 @@ public enum WorkKind
     Craft,
     /// <summary>Thinking at a shrine.</summary>
     Research,
+    /// <summary>Running the marketplace.</summary>
+    Trade,
 }

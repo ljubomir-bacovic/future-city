@@ -13,6 +13,7 @@ public static class Spawn
         var entity = world.CreateEntity();
         entity.AddComponent(new Owner { Player = player });
         entity.AddComponent(Civics.NewCivilization(world.Content));
+        entity.AddComponent(Traders.NewTrader(world.Content)); // the treasury
         return entity;
     }
 
@@ -35,7 +36,10 @@ public static class Spawn
         entity.AddComponent(new TilePosition(x, y));
         entity.AddComponent(new Mover(rules.MoveTicksPerTile, x, y));
         entity.AddComponent(new Owner { Player = player });
-        entity.AddComponent(new Citizen { BirthTick = birthTick, Health = rules.MaxHealth });
+        entity.AddComponent(new Citizen
+        {
+            BirthTick = birthTick, Health = rules.MaxHealth, Happiness = world.Content.Economy.Happiness.Base,
+        });
         entity.AddComponent(new Order());
         return entity;
     }
@@ -81,6 +85,7 @@ public static class Spawn
         entity.AddComponent(new Building { Kind = kind });
         entity.AddComponent(Inventory.Empty(world.Content.Goods.Count));
         if (!complete) entity.AddComponent(new Construction());
+        if (type.Def.Market) entity.AddComponent(Markets.NewMarket(world.Content));
         if (type.Def.Field != null)
         {
             int fertility = AverageFertility(world, x, y, type.Def.Size);

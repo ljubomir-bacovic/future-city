@@ -14,16 +14,30 @@ public static class Labor
     public const int PerTick = 100;
 
     /// <summary>
-    /// Does one tick of <paramref name="kind"/> work: records the activity, picks up nothing, wears the tool down.
-    /// Returns the work done (<see cref="PerTick"/>, more with a tool).
+    /// Does one tick of <paramref name="kind"/> work: records the activity and wears the tool down. Returns the work
+    /// done: <see cref="PerTick"/>, more with a tool, and (once families own their goods) more or less with happiness.
     /// </summary>
     internal static int Work(World world, Entity unit, WorkKind kind)
     {
-        Civics.RecordWork(world, unit.GetComponent<Owner>().Player, kind);
+        int player = unit.GetComponent<Owner>().Player;
+        Civics.RecordWork(world, player, kind);
         ref var citizen = ref unit.GetComponent<Citizen>();
-        if (citizen.ToolWear <= 0) return PerTick;
-        citizen.ToolWear--;
-        return PerTick * (100 + world.Content.Tools.SpeedBonusPercent) / 100;
+        int work = PerTick;
+        if (citizen.ToolWear > 0)
+        {
+            citizen.ToolWear--;
+            work = work * (100 + world.Content.Tools.SpeedBonusPercent) / 100;
+        }
+        if (Economy.HasHouseholds(world, player)) work = work * Productivity(world, citizen.Happiness) / 100;
+        return work;
+    }
+
+    /// <summary>Work speed in percent at a happiness level: normal at 50, slower when unhappy, faster when happy.</summary>
+    public static int Productivity(World world, int happiness)
+    {
+        var rules = world.Content.Economy.Happiness;
+        int h = Math.Clamp(happiness, 0, 100);
+        return rules.ProductivityAtZero + (rules.ProductivityAtHundred - rules.ProductivityAtZero) * h / 100;
     }
 
     /// <summary>A citizen without a tool takes one from <paramref name="store"/> if it has any.</summary>

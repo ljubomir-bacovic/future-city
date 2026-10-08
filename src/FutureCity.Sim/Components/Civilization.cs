@@ -28,4 +28,52 @@ public struct Civilization : IComponent
     public int[] Work;
     /// <summary><see cref="Work"/> at the last emergence evaluation; the difference is the recent activity.</summary>
     public int[] LastWork;
+
+    /// <summary>Silver content of newly struck coins, in percent; below 100 the coins are debased.</summary>
+    public int CoinQuality;
+    /// <summary>Share of what families bring home that they owe the treasury, in percent.</summary>
+    public int TributePercent;
+    /// <summary>Share of each market sale paid to the treasury, in percent.</summary>
+    public int MarketTaxPercent;
+    /// <summary>Share of each trade with foreign merchants paid to the treasury, in percent.</summary>
+    public int TariffPercent;
+    /// <summary>Wage per 100 ticks of public work, in coins (0 before coins: public workers get rations).</summary>
+    public int PublicWage;
+    /// <summary>Coins struck so far.</summary>
+    public int Minted;
+    /// <summary>Exchanges made at the marketplace so far.</summary>
+    public int Trades;
+    /// <summary>The treasury's accounts this year, by <see cref="LedgerEntry"/>.</summary>
+    public int[] Ledger;
+    /// <summary>The treasury's accounts last year, by <see cref="LedgerEntry"/>.</summary>
+    public int[] LastLedger;
+    /// <summary>People who starved to death this year.</summary>
+    public int DeathsThisYear;
+    /// <summary>People who starved to death last year.</summary>
+    public int DeathsLastYear;
+    /// <summary>Whether the people are in unrest.</summary>
+    public bool Unrest;
+    /// <summary>Tick at which the next merchant caravan sets out; 0 until there is a marketplace.</summary>
+    public long NextMerchantTick;
+    /// <summary>Under guilds: most workers each workshop kind may have this year, by building kind.</summary>
+    public int[] GuildCap;
+}
+
+/// <summary>Lines of the treasury's accounts. All in coins except <see cref="Tribute"/>, in units of goods.</summary>
+public enum LedgerEntry
+{
+    /// <summary>Goods received as tribute (units).</summary>
+    Tribute,
+    /// <summary>Market tax received.</summary>
+    MarketTax,
+    /// <summary>Tariffs received from merchants.</summary>
+    Tariffs,
+    /// <summary>Coins struck at the mint.</summary>
+    Minted,
+    /// <summary>Goods sold at the market.</summary>
+    Sales,
+    /// <summary>Wages paid to public workers.</summary>
+    Wages,
+    /// <summary>Goods bought at the market.</summary>
+    Purchases,
 }

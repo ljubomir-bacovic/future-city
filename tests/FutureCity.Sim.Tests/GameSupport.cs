@@ -122,4 +122,38 @@ internal static class GameSupport
     }
 
     public static int Count<T>(Simulation sim) where T : struct, IComponent => sim.World.Store.Query<T>().Count;
+
+    /// <summary>A completed hut that is a family home (Private property is not established by this).</summary>
+    public static Entity Home(Simulation sim, int x, int y)
+    {
+        var hut = Building(sim, "hut", x, y);
+        Households.Found(sim.World, hut);
+        return hut;
+    }
+
+    /// <summary>Makes a citizen a member of a household.</summary>
+    public static Entity LivesIn(this Entity unit, Entity home)
+    {
+        unit.GetComponent<Citizen>().Home = home.Id;
+        return unit;
+    }
+
+    /// <summary>A completed marketplace.</summary>
+    public static Entity Marketplace(Simulation sim, int x, int y) => Building(sim, "marketplace", x, y);
+
+    /// <summary>Puts goods at the marketplace for a trader, as if carried there.</summary>
+    public static void AtMarket(Entity market, Entity trader, string good, int amount) =>
+        Markets.Deposit(market, trader, Good(good), amount);
+
+    public static int AtMarket(Entity trader, string good) => trader.GetComponent<Trader>().AtMarket[Good(good)];
+
+    public static ref Trader TraderOf(Entity entity) => ref entity.GetComponent<Trader>();
+
+    /// <summary>Establishes Private property (and the chiefdom it builds on); with <paramref name="money"/>, Coinage too.</summary>
+    public static void Economy(Simulation sim, bool money = false)
+    {
+        Establish(sim);
+        Establish(sim, "property");
+        if (money) Establish(sim, "coinage");
+    }
 }

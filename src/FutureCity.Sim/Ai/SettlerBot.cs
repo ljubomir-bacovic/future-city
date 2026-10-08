@@ -7,7 +7,7 @@ namespace FutureCity.Sim.Ai;
 
 /// <summary>
 /// A stand-in player that settles: it builds a storehouse, huts and a shrine, researches, establishes a chiefdom,
-/// farms and sets up workshops. Used for balancing and tests until the rival AI arrives (Phase 5). Like a human it
+/// farms and sets up workshops, then (with Private property, Coinage and Guilds) a marketplace and a mint. Used for balancing and tests until the rival AI arrives (Phase 5). Like a human it
 /// only reads the world and issues ordinary commands. Before the chiefdom it directs every adult (builders,
 /// workplaces, material gatherers, and everyone else on food); afterwards it leaves labour to the automatic jobs.
 /// </summary>
@@ -97,17 +97,24 @@ public sealed class SettlerBot
         int Done(string id) => facts.Buildings[world.Content.BuildingIndex(id)];
         bool Can(string id) => world.Content.Buildings[world.Content.BuildingIndex(id)].Requires.IsMet(facts);
 
-        int plannedShelter = Buildings.ShelterOf(world, Player)
-            + (Count("hut") - Done("hut")) * world.Content.Buildings[world.Content.BuildingIndex("hut")].Def.Shelter;
+        int hutShelter = world.Content.Buildings[world.Content.BuildingIndex("hut")].Def.Shelter;
+        int plannedShelter = Buildings.ShelterOf(world, Player) + (Count("hut") - Done("hut")) * hutShelter;
+        // Once families own their homes, children are born only into huts with room: keep a few places free.
+        bool families = Economy.HasHouseholds(world, Player);
+        int housed = Households.Members(world, Player).Values.Sum(m => m.Count);
+        bool hutsTight = families && Count("hut") * hutShelter - housed <= 3;
         string? next =
             Count("storehouse") == 0 ? "storehouse"
-            : plannedShelter - facts.Population <= 2 && Count("hut") < 10 ? "hut"
+            : (plannedShelter - facts.Population <= 2 || hutsTight) && Count("hut") < 12 ? "hut"
             : Can("shrine") && Count("shrine") == 0 ? "shrine"
             : Count("hut") < 3 ? "hut"
             : Can("farm") && Count("farm") < Math.Max(2, facts.Population / 7) ? "farm"
             : Can("toolmaker") && Count("toolmaker") == 0 ? "toolmaker"
+            : Can("marketplace") && Count("marketplace") == 0 ? "marketplace" // families need somewhere to trade
+            : Can("mint") && Count("mint") == 0 ? "mint"
             : Can("mill") && Done("farm") >= 1 && Count("mill") == 0 ? "mill"
             : Can("bakery") && Done("mill") >= 1 && Count("bakery") == 0 ? "bakery"
+            : facts.Era >= 1 && Count("hut") < 6 ? "hut" // settled families want homes of their own
             : null;
         if (next == null) return;
         int kind = world.Content.BuildingIndex(next);

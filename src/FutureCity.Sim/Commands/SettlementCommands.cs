@@ -60,7 +60,7 @@ public sealed record EstablishInstitution(string Institution) : Command
         int index = world.Content.InstitutionIndex(Institution ?? "");
         if (index < 0 || !Civics.TryGet(world, Player, out var civ)) return;
         if (!Civics.CanEstablish(world, Player, index, Civics.FactsOf(world, Player))) return;
-        Stores.TakeFood(world, Player, world.Content.Institutions[index].Def.FoodCost * 100);
+        Economy.TakeFood(world, Player, world.Content.Institutions[index].Def.FoodCost * 100);
         civ.GetComponent<Civilization>().Institutions[index] = 1;
         Bands.TryGetCamp(world, Player, out var camp);
         var at = camp.IsNull ? default : camp.GetComponent<TilePosition>();

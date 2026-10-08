@@ -26,6 +26,10 @@ public struct Citizen : IComponent
     public int Carried;
     /// <summary>Ticks of work left in the citizen's tool; 0 means no tool.</summary>
     public int ToolWear;
+    /// <summary>Entity id of the citizen's family home (a <see cref="Household"/>), or 0 for the camp.</summary>
+    public int Home;
+    /// <summary>Happiness, 0-100; 50 is content.</summary>
+    public int Happiness;
 }
 
 /// <summary>What a citizen was told to do.</summary>
@@ -43,8 +47,10 @@ public enum OrderKind
     ReturnToCamp,
     /// <summary>Bring materials to a construction site and build it.</summary>
     Build,
-    /// <summary>Work at a farm, workshop or shrine.</summary>
+    /// <summary>Work at a farm, workshop, shrine, mint or marketplace.</summary>
     Work,
+    /// <summary>Take goods to the marketplace to sell and bring home what was bought.</summary>
+    Trade,
 }
 
 /// <summary>Progress within an order.</summary>
@@ -105,6 +111,11 @@ public struct Order : IComponent
     public int Good;
     /// <summary>Whether the job was assigned automatically by demand (and may be withdrawn when no longer needed), not by the player.</summary>
     public bool Auto;
+    /// <summary>
+    /// Whether the work is for the treasury (public stores, wages or rations) rather than for the worker's family.
+    /// Only matters once Private property exists; the player's own orders are public.
+    /// </summary>
+    public bool Public;
 }
 
 /// <summary>A band's camp: its fire and lean-tos, and its first store (it also has an <see cref="Inventory"/>).</summary>

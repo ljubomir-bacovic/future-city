@@ -7,7 +7,8 @@ namespace FutureCity.Sim.Tests;
 /// <summary>
 /// Whole games with the real rules: the Phase 1 exit criterion (good play grows the band, neglect brings famine),
 /// the Phase 2 exit criterion (a settling player reaches the Dark Ages in about 5-7 minutes and keeps growing),
-/// plus determinism and save/load for every gameplay component.
+/// the Phase 3 economy (families, markets and coins with steady prices), plus determinism and save/load for every
+/// gameplay component.
 /// </summary>
 public class GameplayTests
 {
@@ -117,6 +118,45 @@ public class GameplayTests
         Assert.Equal(SaveGame.StateHash(uninterrupted), SaveGame.StateHash(resumed));
     }
 
+    [Theory]
+    [InlineData(2UL)]
+    [InlineData(6UL)]
+    public void A_settling_village_grows_a_money_economy_with_steady_prices(ulong seed)
+    {
+        var (sim, _) = Settle(seed, (int)SimClock.FromSeconds(15 * 60));
+        var world = sim.World;
+        Assert.True(Economy.HasHouseholds(world, Players.Human), "no private property");
+        Assert.True(Economy.HasMoney(world, Players.Human), "no coinage");
+        Assert.True(Economy.TryGetMarket(world, Players.Human, out var market));
+        Assert.True(Economy.MoneySupply(world, Players.Human) > 0);
+        Assert.InRange(Markets.Cpi(world, market), 70, 140); // honest coins: no runaway inflation or deflation
+
+        // Goods at the marketplace are exactly what the traders there own.
+        var atMarket = new int[world.Content.Goods.Count];
+        foreach (var trader in Markets.Participants(world, market))
+        {
+            var owned = trader.GetComponent<Components.Trader>().AtMarket;
+            for (int g = 0; g < owned.Length; g++) atMarket[g] += owned[g];
+        }
+        Assert.Equal(market.GetComponent<Components.Inventory>().Amounts, atMarket);
+    }
+
+    [Fact]
+    public void A_money_economy_saves_loads_and_replays_identically()
+    {
+        int total = (int)SimClock.FromSeconds(9 * 60), split = (int)SimClock.FromSeconds(8 * 60);
+        var (uninterrupted, _) = Settle(6, total);
+        Assert.True(Economy.HasMoney(uninterrupted.World, Players.Human));
+
+        var (first, _) = Settle(6, split);
+        var resumed = SaveGame.Read(new MemoryStream(SaveGame.ToBytes(first)), TestSupport.Content);
+        Settle(6, total - split, resumed);
+        Assert.Equal(SaveGame.StateHash(uninterrupted), SaveGame.StateHash(resumed));
+
+        var replay = Simulation.Replay(TestSupport.Content, uninterrupted.World.Setup, uninterrupted.CommandLog, uninterrupted.World.Tick);
+        Assert.Equal(SaveGame.StateHash(uninterrupted), SaveGame.StateHash(replay));
+    }
+
     [Fact]
     public void A_settling_game_saves_loads_and_replays_identically()
     {
@@ -134,11 +174,13 @@ public class GameplayTests
     [Fact]
     public void Every_gameplay_component_survives_a_save_round_trip()
     {
-        // Play a settling game until a carcass, a construction site and a farm exist, so every component type is in the save.
+        // Play a settling game until a carcass, a construction site, a farm, families and a visiting merchant exist, so
+        // every component type is in the save.
         var sim = GameSupport.NewGame(13);
         var bot = new SettlerBot(Players.Human);
         for (int i = 0; i < 12_000 && !(GameSupport.Count<Components.Carcass>(sim) > 0
-                 && GameSupport.Count<Components.Construction>(sim) > 0 && GameSupport.Count<Components.Field>(sim) > 0); i++)
+                 && GameSupport.Count<Components.Construction>(sim) > 0 && GameSupport.Count<Components.Field>(sim) > 0
+                 && GameSupport.Count<Components.Household>(sim) > 0 && GameSupport.Count<Components.Merchant>(sim) > 0); i++)
         {
             bot.Act(sim);
             sim.Step();
@@ -146,7 +188,8 @@ public class GameplayTests
         var bytes = SaveGame.ToBytes(sim);
         string text = Encoding.UTF8.GetString(bytes);
         foreach (var key in new[] { "position", "mover", "owner", "citizen", "order", "camp", "plant", "animal", "carcass",
-                     "inventory", "building", "construction", "field", "deposit", "civilization" })
+                     "inventory", "building", "construction", "field", "deposit", "civilization", "household", "trader",
+                     "market", "merchant" })
             Assert.Contains($"\"{key}\":", text);
 
         var loaded = SaveGame.Read(new MemoryStream(bytes), TestSupport.Content);

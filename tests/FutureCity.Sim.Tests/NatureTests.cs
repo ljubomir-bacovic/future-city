@@ -88,8 +88,15 @@ public class NatureTests
         var hunters = Enumerable.Range(0, 8).Select(_ => GameSupport.Adult(sim, 20, 20)).ToArray();
         sim.Enqueue(new Hunt(hunters.Select(h => h.Id).ToArray(), herd[0].Id) { Player = Players.Human });
 
-        // A large party kills faster than the herd breeds; hunters keep taking the nearest deer until none are left.
-        GameSupport.RunUntil(sim, () => GameSupport.Count<Animal>(sim) == 0, 6000);
+        // A large party kills faster than the herd breeds; hunters keep taking the nearest deer until none are left
+        // (and are sent after any that wander off).
+        GameSupport.RunUntil(sim, () =>
+        {
+            var left = sim.World.Store.Query<Animal>().Entities.Select(e => e.Id).OrderBy(id => id).ToArray();
+            bool idle = hunters.All(h => h.GetComponent<Order>().Kind == OrderKind.Idle);
+            if (left.Length > 0 && idle) sim.Enqueue(new Hunt(hunters.Select(h => h.Id).ToArray(), left[0]) { Player = Players.Human });
+            return left.Length == 0;
+        }, 6000);
         GameSupport.Run(sim, DeerDef.BreedIntervalTicks * 10);
         Assert.Equal(0, GameSupport.Count<Animal>(sim));
     }

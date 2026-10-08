@@ -27,6 +27,7 @@ public class ConditionTests
             Buildings = buildings,
             Techs = techs,
             Institutions = new int[Content.Institutions.Count],
+            Classes = new int[Society.ClassIds.Length],
         };
     }
 

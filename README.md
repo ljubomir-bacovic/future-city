@@ -60,20 +60,22 @@ Controls:
 - **Right-click** with villagers selected: on a deer to hunt; on a berry bush, carcass, stone outcrop or clay pit to gather; on a forest to cut wood; on a construction site to build; on a farm, workshop or shrine to work there; on the camp to return; anywhere else to move.
 - **Build** menu (bottom right): pick a building, then left-click to place it (**Shift** to place several), right-click or **Esc** to cancel. Buttons explain what is still missing.
 - **R** (or the era button) opens discoveries: the next era's checklist, technologies with their progress and a research focus, and institutions you can establish.
+- **E** (or the Economy button, once families own their goods) opens the economy: market prices and their history, the price index and money supply, the treasury, and sliders for tribute, market tax, tariff and the silver content of new coins.
 - **Space** pause, **1–4** speed, **WASD**/arrows/screen edge/middle-drag to pan, mouse wheel to zoom.
 - **F5** quick save, **F9** quick load. The game also autosaves every 2 minutes of game time.
 
-Launch options for testing go after `--`: `--seed=N`, `--map=small|medium|large`, `--zoom=F`, `--autoplay` (a stand-in computer player settles and builds; `--autoplay=forage` only forages), `--skip=N` (simulate N ticks first), `--select-all`, `--research` (open discoveries), `--place=ID` (start placing a building), `--select-building=ID`, `--screenshot=PATH --frames=N`.
+Launch options for testing go after `--`: `--seed=N`, `--map=small|medium|large`, `--zoom=F`, `--autoplay` (a stand-in computer player settles and builds; `--autoplay=forage` only forages), `--skip=N` (simulate N ticks first), `--select-all`, `--research` (open discoveries), `--economy` (open the economy panel), `--place=ID` (start placing a building), `--select-building=ID`, `--screenshot=PATH --frames=N`.
 
 ### Headless simulation
 
-Run a full game without graphics, useful for balancing and testing. By default a stand-in player settles, builds, farms and researches (`--player settle`); `--player forage` only forages and `--player idle` gives no orders. The output shows population, food, births, deaths, buildings, goods, discoveries and when the next era was reached:
+Run a full game without graphics, useful for balancing and testing. By default a stand-in player settles, builds, farms and researches (`--player settle`); `--player forage` only forages and `--player idle` gives no orders. The output shows population, food, births, deaths, buildings, goods, discoveries, when the next era was reached, when Private property, Coinage and Guilds were established, the money supply, the price index and a few prices. Experiments: `--debase-at <s> --quality <n>` debases the coinage at a game second, `--shock-at <s>` destroys half the grain:
 
 ```bash
 dotnet run --project src/FutureCity.Headless -- --seed 42 --ticks 12000
 dotnet run --project src/FutureCity.Headless -- --seed 42 --ticks 3000 --timeline   # band state every game minute
 dotnet run --project src/FutureCity.Headless -- --games 20 --map medium   # many seeds
 dotnet run --project src/FutureCity.Headless -- --player idle --ticks 3000   # no orders: watch a famine
+dotnet run --project src/FutureCity.Headless -- --games 8 --ticks 12000 --debase-at 720 --quality 50   # inflation
 dotnet run --project src/FutureCity.Headless -- --help
 ```
 

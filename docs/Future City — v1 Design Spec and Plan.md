@@ -80,17 +80,17 @@ The simulation owns all game state and rules; Godot only draws it and sends play
 
 **Goal:** prices and money emerge from the simulation instead of being set by the designer.
 
-- [ ] Household and workshop inventories; shared stores replaced by ownership
-- [ ] Barter between households and settlements based on surplus and need
-- [ ] Mint and coinage; coin quality setting; money supply tracking
-- [ ] Marketplace: buy and sell orders, price discovery from supply and demand
-- [ ] Wages and job choice driven by prices
-- [ ] Taxes and tariffs set by the player; treasury
-- [ ] Guilds that regulate crafts (quality up, competition down)
-- [ ] Social classes and happiness (needs met, taxes, safety)
-- [ ] Inflation from coin debasement
-- [ ] Godot: markets and prices dashboard, treasury panel, tax sliders
-- [ ] Headless tests: prices converge after shocks; debasement raises prices
+- [x] Household and workshop inventories; shared stores replaced by ownership
+- [x] Barter between households and settlements based on surplus and need
+- [x] Mint and coinage; coin quality setting; money supply tracking
+- [x] Marketplace: buy and sell orders, price discovery from supply and demand
+- [x] Wages and job choice driven by prices
+- [x] Taxes and tariffs set by the player; treasury
+- [x] Guilds that regulate crafts (quality up, competition down)
+- [x] Social classes and happiness (needs met, taxes, safety)
+- [x] Inflation from coin debasement
+- [x] Godot: markets and prices dashboard, treasury panel, tax sliders
+- [x] Headless tests: prices converge after shocks; debasement raises prices
 
 **Exit:** headless runs show emergent, stable prices, and debasing coins visibly causes inflation.
 
