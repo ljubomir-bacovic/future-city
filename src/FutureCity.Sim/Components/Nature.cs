@@ -26,6 +26,16 @@ public struct Animal : IComponent
     public int HomeY;
 }
 
+/// <summary>A finite raw material deposit such as a stone outcrop or a clay pit.</summary>
+[ComponentKey("deposit")]
+public struct Deposit : IComponent
+{
+    /// <summary>Index into <see cref="Content.ContentDatabase.Deposits"/>.</summary>
+    public int Kind;
+    /// <summary>Units left.</summary>
+    public int Amount;
+}
+
 /// <summary>A killed animal: meat that spoils over time.</summary>
 [ComponentKey("carcass")]
 public struct Carcass : IComponent

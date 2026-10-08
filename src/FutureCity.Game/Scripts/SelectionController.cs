@@ -161,7 +161,7 @@ public partial class SelectionController : Node2D
             (command, _pingColor) = (new Hunt(units, t.Id), new Color("#ff6a5a"));
         else if (target is { } c && c.HasComponent<Camp>())
             (command, _pingColor) = (new ReturnToCamp(units), new Color("#ffffff"));
-        else if (target is { } f && FoodSources.HasGatherableFood(f))
+        else if (target is { } f && Sources.HasGoods(f))
             (command, _pingColor) = (new Gather(units, f.Id), new Color("#ffd24a"));
         else
         {

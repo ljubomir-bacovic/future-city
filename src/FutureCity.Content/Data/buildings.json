@@ -1,0 +1,55 @@
+{
+  // Buildings. size: footprint in tiles (size x size). cost: materials builders must deliver before work starts.
+  // buildWork: ticks of work by one builder without tools. requires: condition (see progress.json) that must hold
+  // for the player to place it; empty means always.
+  "buildings": [
+    {
+      "id": "hut", "name": "Hut", "color": "#a07a4a", "size": 1,
+      "cost": { "wood": 15, "clay": 10 }, "buildWork": 120, "requires": "",
+      "shelter": 4                 // people it houses
+    },
+    {
+      "id": "storehouse", "name": "Storehouse", "color": "#8a6a44", "size": 2,
+      "cost": { "wood": 30 }, "buildWork": 150, "requires": "",
+      "storage": true              // workers drop goods here; a store near the work saves walking
+    },
+    {
+      "id": "shrine", "name": "Shrine", "color": "#b8a27a", "size": 1,
+      "cost": { "wood": 15, "stone": 15 }, "buildWork": 120, "requires": "building.storehouse >= 1",
+      "workers": 2,
+      "research": 1                // research points per worker per tick, toward the chosen discovery
+    },
+    {
+      "id": "farm", "name": "Farm field", "color": "#9c7a3c", "size": 3,
+      "cost": { "wood": 10 }, "buildWork": 60, "requires": "tech.farming",
+      "workers": 2,
+      "field": {
+        "good": "grain",
+        "sowWork": 60,             // ticks of work to sow the field
+        "growTicks": 900,          // ticks of full-speed growth to ripen (seasons and soil slow it down)
+        "yield": 90,               // grain from a ripe field on perfect soil
+        "harvestTicksPerUnit": 2,
+        "fertilityPerHarvest": 12, // soil exhaustion per harvest, in fertility points
+        "fertilityRecoveryIntervalTicks": 40 // a fallow field regains 1 point this often, up to its natural fertility
+      }
+    },
+    {
+      "id": "toolmaker", "name": "Toolmaker", "color": "#6f6a64", "size": 1,
+      "cost": { "wood": 20, "stone": 20 }, "buildWork": 120, "requires": "tech.toolmaking",
+      "workers": 1,
+      "recipe": { "inputs": { "wood": 2, "stone": 1 }, "outputs": { "tools": 1 }, "workTicks": 60 }
+    },
+    {
+      "id": "mill", "name": "Mill", "color": "#c9b48a", "size": 1,
+      "cost": { "wood": 20, "stone": 20 }, "buildWork": 120, "requires": "tech.farming",
+      "workers": 1,
+      "recipe": { "inputs": { "grain": 4 }, "outputs": { "flour": 4 }, "workTicks": 30 }
+    },
+    {
+      "id": "bakery", "name": "Bakery", "color": "#b5683f", "size": 1,
+      "cost": { "wood": 15, "clay": 20, "stone": 10 }, "buildWork": 120, "requires": "tech.farming",
+      "workers": 1,
+      "recipe": { "inputs": { "flour": 4, "wood": 1 }, "outputs": { "bread": 4 }, "workTicks": 30 }
+    }
+  ]
+}

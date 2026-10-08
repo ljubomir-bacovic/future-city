@@ -25,7 +25,14 @@ public sealed class CommandRegistry
             .Register<MoveUnits>("moveUnits")
             .Register<Gather>("gather")
             .Register<Hunt>("hunt")
-            .Register<ReturnToCamp>("returnToCamp");
+            .Register<ReturnToCamp>("returnToCamp")
+            .Register<GatherTile>("gatherTile")
+            .Register<Build>("build")
+            .Register<AssignWork>("assignWork")
+            .Register<PlaceBuilding>("placeBuilding")
+            .Register<CancelBuilding>("cancelBuilding")
+            .Register<SetResearchFocus>("setResearchFocus")
+            .Register<EstablishInstitution>("establishInstitution");
     }
 
     /// <summary>Registers a command type under a stable name.</summary>

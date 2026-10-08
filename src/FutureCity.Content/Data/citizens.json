@@ -1,8 +1,8 @@
 {
   // Citizens: ageing, needs and the band's starting conditions.
-  // Time scale: early eras pass quickly, so one game year is a few seconds of play.
-  "ticksPerYear": 120,          // 12 s per year at 1x (10 ticks per second)
-  "adultAgeYears": 14,          // children eat but cannot be given orders
+  // The length of a year is set by the calendar in rules.json.
+  "adultAgeYears": 12,          // working age: children eat but cannot be given orders (forager and farming
+                                // children did real work from about this age)
   "oldAgeYears": 50,            // from this age the yearly chance of a natural death rises...
   "oldAgeDeathPercentPerYear": 4, // ...by this many percentage points per year past oldAgeYears
 
@@ -16,17 +16,26 @@
   "starvationDamagePerTick": 4, // about 25 s from starving to death
 
   "moveTicksPerTile": 3,        // on open grassland; terrain moveCost and diagonals add to it
-  "carryCapacity": 10,          // food carried back to camp per trip
+  "carryCapacity": 10,          // goods carried per trip
 
-  "start": { "citizens": 6, "food": 100, "minAgeYears": 16, "maxAgeYears": 30 },
-  "camp": { "shelter": 20 },    // people the camp's lean-tos and fire can shelter
+  "start": { "citizens": 8, "goods": { "berries": 120 }, "minAgeYears": 8, "maxAgeYears": 35 },
+  "camp": { "shelter": 10 },    // people the camp's lean-tos and fire can shelter; huts add more
 
   // A child is born when the band has a food surplus and shelter to spare.
   "growth": {
     "checkIntervalTicks": 100,
-    "foodPerCapita": 25,        // store must hold this much per person (plus the birth cost)
+    "foodPerCapita": 25,        // store must hold this many meals per person (plus the birth cost)
     "birthFoodCost": 40,
     "birthChancePercent": 35,
     "populationCap": 100
+  },
+
+  // Automatic job assignment (once an institution with autoJobs is established).
+  "jobs": {
+    "checkIntervalTicks": 20,
+    "foodTargetPerCapita": 30,  // meals in store per person the band aims for
+    "buildPriority": 40,        // demand score of helping at a construction site
+    "researchPriority": 15,     // demand score of working at a shrine while something can be discovered
+    "maxBuildersPerSite": 3
   }
 }

@@ -72,6 +72,9 @@ public sealed class World
     private int[]? _regionLabels;
     private int _regionVersion;
 
+    /// <summary>Civilization entity id per player, filled on first lookup. A cache only (lookups only, never iterated).</summary>
+    internal Dictionary<int, int> CivilizationIds { get; } = [];
+
     /// <summary>Whether a unit standing on (x1, y1) could walk to (x2, y2).</summary>
     public bool CanReach(int x1, int y1, int x2, int y2)
     {
@@ -90,8 +93,8 @@ public sealed class World
         return false;
     }
 
-    internal void Emit(SimEventKind kind, int player, int entity, int x, int y) =>
-        EventList.Add(new SimEvent(kind, player, entity, x, y));
+    internal void Emit(SimEventKind kind, int player, int entity, int x, int y, int detail = 0) =>
+        EventList.Add(new SimEvent(kind, player, entity, x, y, detail));
 
     /// <summary>Creates a new entity with the next deterministic id.</summary>
     public Entity CreateEntity()

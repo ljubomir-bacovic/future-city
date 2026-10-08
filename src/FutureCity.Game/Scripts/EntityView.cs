@@ -96,7 +96,7 @@ public partial class EntityView : Node2D
             bool adult = Bands.IsAdult(world, citizen);
             bool selected = _selection.IsSelected(e.Id);
             float health = (float)citizen.Health / rules.MaxHealth;
-            bool carrying = citizen.CarriedFood > 0;
+            bool carrying = citizen.Carried > 0;
             _drawList.Add((p.Y, () => DrawPerson(p, adult ? 1f : 0.65f, selected, health, carrying)));
         }
 

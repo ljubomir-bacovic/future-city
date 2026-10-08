@@ -51,7 +51,46 @@ public static class MapGenerator
                 if (map.Contains(x, y)) map.SetTerrain(x, y, grass);
             }
         }
+        AddResources(map, content);
+        AddFertility(map, content, water, rng);
         return new GeneratedMap(map, startX, startY);
+    }
+
+    // Every tile starts with its terrain's full resource (e.g. wood in forests).
+    private static void AddResources(TileMap map, ContentDatabase content)
+    {
+        for (int y = 0; y < map.Height; y++)
+        {
+            for (int x = 0; x < map.Width; x++)
+                map.SetResource(x, y, content.Terrains[map.GetTerrain(x, y)].Resource?.Amount ?? 0);
+        }
+    }
+
+    // Soil fertility: smooth variation between min and max, plus a bonus near water that fades with distance.
+    private static void AddFertility(TileMap map, ContentDatabase content, int water, Pcg32 rng)
+    {
+        var rules = content.Rules.MapGeneration.Fertility;
+        var noise = ValueNoise.Generate(map.Width, map.Height, content.Rules.MapGeneration.FeatureSize, rng);
+        int low = ValueNoise.Percentile(noise, 0), high = Math.Max(low + 1, ValueNoise.Percentile(noise, 100));
+        int radius = rules.WaterRadius;
+        for (int y = 0; y < map.Height; y++)
+        {
+            for (int x = 0; x < map.Width; x++)
+            {
+                int fertility = rules.Min + (int)((long)(noise[y * map.Width + x] - low) * (rules.Max - rules.Min) / (high - low));
+                int nearest = int.MaxValue;
+                for (int dy = -radius; dy <= radius; dy++)
+                {
+                    for (int dx = -radius; dx <= radius; dx++)
+                    {
+                        if (map.Contains(x + dx, y + dy) && map.GetTerrain(x + dx, y + dy) == water)
+                            nearest = Math.Min(nearest, Math.Max(Math.Abs(dx), Math.Abs(dy)));
+                    }
+                }
+                if (nearest != int.MaxValue) fertility += rules.WaterBonus * (radius + 1 - nearest) / (radius + 1);
+                map.SetFertility(x, y, Math.Clamp(fertility, 0, 100));
+            }
+        }
     }
 
     // The tile nearest the center (ring by ring, in scan order) whose surroundings are dry land in the largest area.

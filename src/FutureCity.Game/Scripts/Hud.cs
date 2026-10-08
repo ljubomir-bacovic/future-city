@@ -144,7 +144,7 @@ public partial class Hud : CanvasLayer
         if (world == null) return;
         var census = Bands.CensusOf(world, Players.Human);
         bool hasCamp = Bands.TryGetCamp(world, Players.Human, out var camp);
-        _foodLabel.Text = $"Food {(hasCamp ? camp.GetComponent<Camp>().Food : 0)}";
+        _foodLabel.Text = $"Food {Stores.Meals(world, Players.Human)}";
         string children = census.Children > 0 ? $" ({census.Children})" : "";
         _peopleLabel.Text = $"People {census.Total}{children} / {(hasCamp ? camp.GetComponent<Camp>().Shelter : 0)}";
     }
@@ -164,7 +164,7 @@ public partial class Hud : CanvasLayer
             string doing = adult ? Describe(one.GetComponent<Order>()) : "Too young to work";
             _selectionLabel.Text = $"{(adult ? "Villager" : "Child")}, age {Bands.AgeInYears(world, c)}  ·  {doing}\n" +
                                    $"Health {c.Health * 100 / rules.MaxHealth}%  ·  Hunger {c.Hunger * 100 / rules.MaxHunger}%" +
-                                   (c.CarriedFood > 0 ? $"  ·  Carrying {c.CarriedFood} food" : "");
+                                   (c.Carried > 0 ? $"  ·  Carrying {c.Carried} {world.Content.Goods[c.CarriedGood].Name.ToLowerInvariant()}" : "");
             return;
         }
         var orders = selected
@@ -181,7 +181,7 @@ public partial class Hud : CanvasLayer
     {
         OrderKind.Move => "Walking",
         OrderKind.Gather when order.Stage == OrderStage.Deliver => "Carrying food to camp",
-        OrderKind.Gather => order.TargetIsPlant ? "Gathering berries" : "Butchering",
+        OrderKind.Gather => order.TargetType == TargetType.Carcass ? "Butchering" : "Gathering",
         OrderKind.Hunt => "Hunting",
         OrderKind.ReturnToCamp => "Returning to camp",
         _ => "Idle",

@@ -40,7 +40,7 @@ public class MapGeneratorTests
         var rules = world.Content.Citizens;
         Assert.True(Bands.TryGetCamp(world, Players.Human, out var camp));
         var start = camp.GetComponent<TilePosition>();
-        Assert.Equal(rules.Start.Food, camp.GetComponent<Camp>().Food);
+        Assert.Equal(rules.Start.Goods["berries"], GameSupport.Berries(camp));
 
         int clear = world.Content.Rules.MapGeneration.StartClearRadius;
         int grass = world.Content.TerrainIndex("grass");
@@ -50,7 +50,9 @@ public class MapGeneratorTests
                 Assert.Equal(grass, world.Map.GetTerrain(x, y));
         }
 
-        Assert.Equal(rules.Start.Citizens, Bands.CensusOf(world, Players.Human).Adults);
+        var census = Bands.CensusOf(world, Players.Human);
+        Assert.Equal(rules.Start.Citizens, census.Total);
+        Assert.True(census.Adults >= 2, "a band starts with at least two adults");
         foreach (var entity in world.Store.Query<TilePosition>().Entities)
         {
             var pos = entity.GetComponent<TilePosition>();

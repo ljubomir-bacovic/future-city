@@ -14,7 +14,7 @@ public sealed class AgingSystem : ISimSystem
         var rules = world.Content.Citizens;
         foreach (var unit in World.InIdOrder(world.Store.Query<Citizen, Owner>()))
         {
-            if ((world.Tick + unit.Id) % rules.TicksPerYear != 0) continue;
+            if ((world.Tick + unit.Id) % world.Content.Calendar.TicksPerYear != 0) continue;
             int yearsPastOldAge = Bands.AgeInYears(world, unit.GetComponent<Citizen>()) - rules.OldAgeYears;
             if (yearsPastOldAge <= 0) continue;
             int chance = Math.Min(100, yearsPastOldAge * rules.OldAgeDeathPercentPerYear);

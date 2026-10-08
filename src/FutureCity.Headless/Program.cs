@@ -108,7 +108,7 @@ public static class Program
     {
         var w = sim.World;
         var census = Bands.CensusOf(w, Players.Human);
-        int food = Bands.TryGetCamp(w, Players.Human, out var camp) ? camp.GetComponent<Camp>().Food : 0;
+        int food = Stores.Meals(w, Players.Human);
         int deer = w.Store.Query<Animal>().Count;
         int berries = 0;
         foreach (var plant in w.Store.Query<Plant>().Entities) berries += plant.GetComponent<Plant>().Food;

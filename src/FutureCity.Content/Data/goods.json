@@ -1,0 +1,25 @@
+{
+  // Goods kept in stores and carried by citizens.
+  // nutrition: food value per unit in percent of a standard ration (0 = not food). Grain eaten whole is poorly
+  // digested; milling and baking roughly double the food a harvest provides, which is why bread chains spread.
+  // targetPerCapita: how much of the good the band wants per person; demand drives automatic job assignment.
+  "goods": [
+    { "id": "berries", "name": "Berries", "color": "#a8324a", "nutrition": 100, "targetPerCapita": 0 },
+    { "id": "meat",    "name": "Meat",    "color": "#8c3b2f", "nutrition": 100, "targetPerCapita": 0 },
+    { "id": "grain",   "name": "Grain",   "color": "#d9b648", "nutrition": 50,  "targetPerCapita": 8 },
+    { "id": "flour",   "name": "Flour",   "color": "#efe6cf", "nutrition": 0,   "targetPerCapita": 2 },
+    { "id": "bread",   "name": "Bread",   "color": "#c27b3a", "nutrition": 100, "targetPerCapita": 0 },
+    { "id": "wood",    "name": "Wood",    "color": "#8a6236", "nutrition": 0,   "targetPerCapita": 6 },
+    { "id": "stone",   "name": "Stone",   "color": "#9a9a92", "nutrition": 0,   "targetPerCapita": 3 },
+    { "id": "clay",    "name": "Clay",    "color": "#b5683f", "nutrition": 0,   "targetPerCapita": 3 },
+    { "id": "tools",   "name": "Tools",   "color": "#5f6f7a", "nutrition": 0,   "targetPerCapita": 1 }
+  ],
+
+  // Workers pick up a tool from a store when one is available. A tool speeds up gathering, building,
+  // farming and crafting until it wears out.
+  "tools": {
+    "good": "tools",
+    "durability": 600,        // ticks of work before the tool is worn out
+    "speedBonusPercent": 50
+  }
+}

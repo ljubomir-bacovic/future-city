@@ -48,7 +48,7 @@ public sealed class ForagingBot
             adults++;
             var order = unit.GetComponent<Order>();
             if (order.Kind == OrderKind.Idle) idle.Add(unit.Id);
-            else if (order.Kind == OrderKind.Hunt || (order.Kind == OrderKind.Gather && !order.TargetIsPlant)) hunters++;
+            else if (order.Kind == OrderKind.Hunt || (order.Kind == OrderKind.Gather && order.TargetType == TargetType.Carcass)) hunters++;
             if (order.Kind == OrderKind.Gather) workersAt[order.Target] = workersAt.GetValueOrDefault(order.Target) + 1;
         }
 
@@ -83,14 +83,14 @@ public sealed class ForagingBot
 
     private bool TryHunt(World world, TilePosition from, int unit, Simulation sim)
     {
-        if (FoodSources.TryFindCarcass(world, from.X, from.Y, int.MaxValue, out var carcass))
+        if (Sources.TryFindCarcass(world, from.X, from.Y, int.MaxValue, out var carcass))
         {
             sim.Enqueue(new Gather([unit], carcass.Id) { Player = Player });
             return true;
         }
         for (int kind = 0; kind < world.Content.Animals.Count; kind++)
         {
-            if (!FoodSources.TryFindAnimal(world, kind, from.X, from.Y, int.MaxValue, out var animal)) continue;
+            if (!Sources.TryFindAnimal(world, kind, from.X, from.Y, int.MaxValue, out var animal)) continue;
             sim.Enqueue(new Hunt([unit], animal.Id) { Player = Player });
             return true;
         }

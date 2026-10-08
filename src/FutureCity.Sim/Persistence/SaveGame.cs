@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Friflo.Engine.ECS.Serialize;
@@ -18,7 +19,7 @@ public sealed class SaveGameException(string message, Exception? inner = null) :
 public static class SaveGame
 {
     /// <summary>Save format version. Bump when the layout changes.</summary>
-    public const int FormatVersion = 1;
+    public const int FormatVersion = 2;
 
     /// <summary>Recommended file extension.</summary>
     public const string FileExtension = ".fcsave";
@@ -54,6 +55,8 @@ public static class SaveGame
         writer.WriteNumber("width", world.Map.Width);
         writer.WriteNumber("height", world.Map.Height);
         writer.WriteBase64String("terrain", world.Map.RawTerrain);
+        writer.WriteBase64String("resource", ResourceBytes(world.Map));
+        writer.WriteBase64String("fertility", world.Map.RawFertility);
         writer.WriteEndObject();
 
         WriteCommands(writer, "pendingCommands", OrderForSave(sim.PendingCommands), sim.Config.Commands);
@@ -110,7 +113,9 @@ public static class SaveGame
 
             var mapJson = root.GetProperty("map");
             var map = new TileMap(mapJson.GetProperty("width").GetInt32(), mapJson.GetProperty("height").GetInt32(),
-                mapJson.GetProperty("terrain").GetBytesFromBase64());
+                mapJson.GetProperty("terrain").GetBytesFromBase64(),
+                ResourceAmounts(mapJson.GetProperty("resource").GetBytesFromBase64()),
+                mapJson.GetProperty("fertility").GetBytesFromBase64());
 
             var world = new World(content, setup, map, rng, root.GetProperty("tick").GetInt64(),
                 root.GetProperty("nextEntityId").GetInt32());
@@ -141,6 +146,25 @@ public static class SaveGame
     {
         using var stream = File.OpenRead(path);
         return Read(stream, content, config);
+    }
+
+    // Resource amounts are 16-bit; they are stored little-endian so saves are identical on every machine.
+    private static byte[] ResourceBytes(TileMap map)
+    {
+        var amounts = map.RawResource;
+        var bytes = new byte[amounts.Length * 2];
+        for (int i = 0; i < amounts.Length; i++)
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(i * 2), amounts[i]);
+        return bytes;
+    }
+
+    private static ushort[] ResourceAmounts(byte[] bytes)
+    {
+        if (bytes.Length % 2 != 0) throw new FormatException("Resource layer has an odd length.");
+        var amounts = new ushort[bytes.Length / 2];
+        for (int i = 0; i < amounts.Length; i++)
+            amounts[i] = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(i * 2));
+        return amounts;
     }
 
     private static IEnumerable<ScheduledCommand> OrderForSave(IEnumerable<ScheduledCommand> commands) =>

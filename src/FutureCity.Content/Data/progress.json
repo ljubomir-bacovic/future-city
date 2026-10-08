@@ -1,0 +1,56 @@
+{
+  // Emergence: technologies, institutions and eras appear when their real-world preconditions hold in the
+  // player's society. Nothing unlocks on a timer.
+  //
+  // Conditions are integer expressions over facts about the player:
+  //   population, adults, children, food (meals in store), shelter, era
+  //   store.<good>, gathered.<good>, produced.<good>, building.<id> (completed), tech.<id>, institution.<id> (0 or 1)
+  // Operators: || && ! < <= > >= == != + - * / and parentheses.
+  "evaluationIntervalTicks": 50,
+
+  // Once a technology's preconditions hold, related work earns progress (activity: points per 100 ticks of that
+  // work) and so do elders at a shrine when it is the chosen focus. Every evaluation it may be discovered by chance,
+  // with a probability of luckPercent x progress / cost; at full cost it is discovered for certain.
+  "luckPercent": 15,
+
+  "techs": [
+    {
+      "id": "toolmaking", "name": "Toolmaking",
+      "preconditions": "gathered.wood >= 120 && gathered.stone >= 40 && building.storehouse >= 1",
+      "cost": 1500,
+      "activity": { "woodcut": 60, "quarry": 100, "build": 40 },
+      "codex": "Stone tools are older than our species, but making good ones takes time and skill: the right stone, a wooden haft, binding and practice. Only a settled group with stored wood and stone, and food to spare, can let someone spend whole days making tools for others. Better tools then make every other kind of work faster."
+    },
+    {
+      "id": "farming", "name": "Farming",
+      "preconditions": "gathered.berries >= 400 && building.hut >= 2 && population >= 10",
+      "cost": 2500,
+      "activity": { "forage": 100, "build": 20 },
+      "codex": "Farming did not start with a single idea. Foragers already knew wild plants intimately. Once people stayed in one place, with more mouths to feed than wild food nearby could support, it paid to sow seeds and wait for a harvest. Farming means more food from less land, but harder work, and a bad season can bring famine."
+    }
+  ],
+
+  // Institutions become available when their preconditions hold; the player then decides to establish them.
+  "institutions": [
+    {
+      "id": "chiefdom", "name": "Chiefdom",
+      "preconditions": "population >= 12 && building.hut >= 3 && food >= population * 15",
+      "foodCost": 120,             // meals spent on the feast that confirms the chief
+      "autoJobs": true,            // the chief organizes labour: idle people take up work where it is needed
+      "codex": "In small bands everyone decides together. As a settled village grows, someone is needed to settle disputes, organize shared work and manage the surplus. A chief gains standing by giving feasts and sharing food, and in return directs labour where it is needed. The village becomes more organized, but power and wealth begin to concentrate."
+    }
+  ],
+
+  // Eras in order. The first is where every game starts.
+  "eras": [
+    {
+      "id": "primitive", "name": "Primitive Age", "preconditions": "",
+      "codex": "For most of human history people lived in small bands that moved with the seasons, hunting animals and gathering wild plants."
+    },
+    {
+      "id": "dark_ages", "name": "Dark Ages",
+      "preconditions": "tech.farming && tech.toolmaking && institution.chiefdom && building.farm >= 2 && population >= 14",
+      "codex": "Farming villages with a chief, craftsmen and stored grain mark a new way of life. Surplus food lets some people specialize, and a leader can organize work, but villages now have something worth raiding and defending."
+    }
+  ]
+}
