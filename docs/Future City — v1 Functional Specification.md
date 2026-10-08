@@ -78,9 +78,9 @@ The player sees prices, trade flows and the treasury balance, with a simple view
 
 ## Military and conflict
 
-- **Military evolves with the economy:** armed hunters, then levies of peasants, then paid mercenaries once money exists.
+- **Military evolves with the economy:** armed hunters, then levies of peasants, then paid soldiers once money exists.
 - **Armies cost food and labour.** Soldiers are taken from the workforce and must be fed and equipped; paid troops need a treasury.
-- **Units in v1:** clubmen and hunters, spearmen, archers, cavalry (horse archers for the Mongols, heavy cavalry for the Franks), rams, and transport and war boats.
+- **Units in v1:** clubmen and hunters, spearmen, archers, cavalry (horse archers for the Mongols, heavy cavalry for the Franks), rams, and transport and war boats (with the Venetians' coastal start). Cavalry needs horses, raised in stables on grain.
 - **Combat** is real-time, AoE2 style, with direct unit control and simple fortifications (palisades, then stone walls).
 - **War has economic effects:** disrupted trade, destroyed buildings, deaths and loot.
 - **Diplomacy:** peace, alliance, trade agreement, tribute, war.
@@ -134,3 +134,8 @@ After each major crisis the game shows a short explainer of what happened, why, 
 - [x] Economic actors: families (huts) own goods and coins; gatherers, farmers and crafters work for their family; the chief's treasury owns public buildings and pays for public work.
 - [x] Before rival AI, settlements trade with visiting foreign merchants, who pay tariffs.
 - [x] Before coins, the chief is paid tribute in goods; afterwards taxes are paid in coins.
+- [x] Soldiers are the civilization's own people. Levies serve unpaid; paid soldiers (the game's "mercenaries") need coins and serve for a wage. Both are taken from the workforce and fed from the public stores.
+- [x] Horses are raised in a stable from grain, after Horsemanship, which needs a grain surplus.
+- [x] Boats come with the Venetians' coastal start (Phase 7), not in Phase 4.
+- [x] Soldiers fight soldiers, caravans and buildings on their own; they attack civilians only when ordered. Civilians near enemy soldiers stop work and flee. A war hurts through lost work, loot, burned buildings and closed markets more than through deaths.
+- [x] For testing, several civilizations can share one screen (hot-seat): F2 hands control to the next one.
