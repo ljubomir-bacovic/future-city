@@ -98,14 +98,15 @@ public static class Traders
             plan.Wanted[g] = Math.Max(0, plan.Target[g] - plan.Held[g]);
             plan.Offered[g] = Math.Max(0, plan.Held[g] - plan.Target[g] * surplus / 100);
         }
-        PlanFood(world, trader.GetComponent<Trader>().Beliefs, plan, meals, surplus);
+        PlanFood(world, trader.GetComponent<Trader>(), plan, meals, surplus);
         return plan;
     }
 
     // Food is wanted and offered in meals: a family short of meals wants the food that is cheapest per meal, and
-    // offers its most valuable food first when it has far more than it needs.
-    private static void PlanFood(World world, int[] beliefs, TradePlan plan, int mealsTarget, int surplus)
+    // when it has far more than it needs offers food already at the market first, then its most valuable food.
+    private static void PlanFood(World world, Trader trader, TradePlan plan, int mealsTarget, int surplus)
     {
+        var beliefs = trader.Beliefs;
         var content = world.Content;
         int held = Stores.MealsIn(world, plan.Held);
         plan.MealsHeld = held;
@@ -124,14 +125,18 @@ public static class Traders
             plan.Wanted[cheapest] = Math.Max(plan.Wanted[cheapest], ((mealsTarget - held) * 100 + nutrition - 1) / nutrition);
         }
         long excess = (long)held * 100 - (long)mealsTarget * surplus; // in nutrition points
-        for (int i = foods.Length - 1; i >= 0 && excess > 0; i--)
+        for (int pass = 0; pass < 2; pass++)
         {
-            int f = foods[i];
-            int nutrition = content.Nutrition(f);
-            int spare = Math.Max(0, plan.Held[f] - plan.Target[f] * surplus / 100);
-            int units = (int)Math.Min(spare, (excess + nutrition - 1) / nutrition);
-            plan.Offered[f] = units;
-            excess -= (long)units * nutrition;
+            for (int i = foods.Length - 1; i >= 0 && excess > 0; i--)
+            {
+                int f = foods[i];
+                int nutrition = content.Nutrition(f);
+                int spare = Math.Max(0, plan.Held[f] - plan.Target[f] * surplus / 100) - plan.Offered[f];
+                if (pass == 0) spare = Math.Min(spare, trader.AtMarket[f]);
+                int units = (int)Math.Min(spare, (excess + nutrition - 1) / nutrition);
+                plan.Offered[f] += units;
+                excess -= (long)units * nutrition;
+            }
         }
     }
 
@@ -207,7 +212,7 @@ public static class Traders
         if (IsMerchant(trader))
             return Math.Max(1, (int)((long)WorldPrice(world, player, good) * (100 + rules.Merchants.SellMarkupPercent) / 100));
         int belief = trader.GetComponent<Trader>().Beliefs[good];
-        int ask = plan.Held[good] > 2 * plan.Target[good] ? belief * (100 - rules.Market.SurplusDiscountPercent) / 100 : belief;
+        int ask = Glut(world, plan, good) ? belief * (100 - rules.Market.SurplusDiscountPercent) / 100 : belief;
         if (Economy.HasGuilds(world, player)) ask = Math.Max(ask, GuildFloor(world, trader, good));
         return Math.Max(1, ask);
     }
@@ -219,9 +224,21 @@ public static class Traders
         if (IsMerchant(trader))
             return Math.Max(1, (int)((long)WorldPrice(world, PlayerOf(trader), good) * (100 - rules.Merchants.BuyDiscountPercent) / 100));
         int belief = trader.GetComponent<Trader>().Beliefs[good];
-        int bid = plan.Held[good] * 2 < plan.Target[good] ? belief * (100 + rules.Market.NeedPremiumPercent) / 100 : belief;
+        int bid = Short(world, plan, good) ? belief * (100 + rules.Market.NeedPremiumPercent) / 100 : belief;
         return Math.Max(1, bid);
     }
+
+    // Whether the trader has less than half of what it wants of a good (food counted in meals).
+    private static bool Short(World world, TradePlan plan, int good) =>
+        world.Content.Goods[good].Nutrition > 0 && plan.Target[good] == 0
+            ? plan.MealsHeld * 2 < plan.MealsTarget
+            : plan.Held[good] * 2 < plan.Target[good];
+
+    // Whether the trader has more than twice what it wants of a good (food counted in meals).
+    private static bool Glut(World world, TradePlan plan, int good) =>
+        world.Content.Goods[good].Nutrition > 0 && plan.Target[good] == 0
+            ? plan.MealsHeld > 2 * plan.MealsTarget
+            : plan.Held[good] > 2 * plan.Target[good];
 
     /// <summary>
     /// A good's world price in the player's coins: its value in silver terms, so debased coins buy less abroad.

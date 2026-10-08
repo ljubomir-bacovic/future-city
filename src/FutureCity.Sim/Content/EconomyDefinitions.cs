@@ -81,6 +81,8 @@ public sealed record WageRules
     public required int RationMeals { get; init; }
     /// <summary>After coins, the treasury hires as many public workers as it can pay for this many job checks.</summary>
     public required int ReserveChecks { get; init; }
+    /// <summary>Most of the adults living in family homes who work for the treasury, in percent.</summary>
+    public required int MaxPublicPercent { get; init; }
     /// <summary>Public wage = typical private income + this percentage.</summary>
     public required int PublicPremiumPercent { get; init; }
     /// <summary>People change jobs only for this much more income, in percent.</summary>

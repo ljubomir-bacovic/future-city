@@ -384,6 +384,7 @@ public static partial class ContentLoader
         var w = e.Wages;
         CheckRange(f, "wages.rationMeals", w.RationMeals, 1, 10_000, errors);
         CheckRange(f, "wages.reserveChecks", w.ReserveChecks, 1, 10_000, errors);
+        CheckRange(f, "wages.maxPublicPercent", w.MaxPublicPercent, 0, 100, errors);
         CheckRange(f, "wages.publicPremiumPercent", w.PublicPremiumPercent, 0, 1000, errors);
         CheckRange(f, "wages.switchMarginPercent", w.SwitchMarginPercent, 0, 1000, errors);
         CheckRange(f, "wages.switchesPerCheck", w.SwitchesPerCheck, 1, 100, errors);

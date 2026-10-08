@@ -11,9 +11,14 @@ namespace FutureCity.Sim;
 /// <para>
 /// Before coins, traders barter: a trade needs a double coincidence of wants (each side has what the other wants),
 /// at a ratio between both sides' values. Failing that, a seller accepts the good most people want that day (often
-/// grain) because it can pass it on: the beginning of commodity money. With coins, each good is sold in a call auction: bids from the highest,
-/// asks from the lowest, trading while a bid covers an ask, all at one price halfway between the last pair. Nobody
-/// sets prices: every trader keeps beliefs about what goods are worth and adjusts them to what happened.
+/// grain) because it can pass it on: the beginning of commodity money.
+/// </para>
+/// <para>
+/// With coins, each good trades at the market's going price. Buyers bid for what they want, as much as their coins
+/// buy, up to their limit; sellers offer their surplus down to theirs. Whatever both sides accept at the going price
+/// trades at it, and then the price moves up when more was wanted than offered and down when more was offered.
+/// Nobody sets prices: they follow supply and demand, and the amount of money people hold. Every trader's beliefs
+/// about what goods are worth follow the prices it hears.
 /// </para>
 /// </summary>
 public static class Markets
@@ -107,7 +112,7 @@ public static class Markets
 
     // ---- Barter ----
 
-    private static void Barter(World world, Entity market, List<Entity> traders, Dictionary<int, TradePlan> plans)
+    internal static void Barter(World world, Entity market, List<Entity> traders, Dictionary<int, TradePlan> plans)
     {
         var content = world.Content;
         int goods = content.Goods.Count;
@@ -228,7 +233,10 @@ public static class Markets
 
     private readonly record struct Offer(Entity Trader, int Quantity, int Limit);
 
-    private static void Auction(World world, Entity market, List<Entity> traders, Dictionary<int, TradePlan> plans, int good)
+    // One good's market with coins. Buyers who can pay bid what they want, as much as their coins buy at today's
+    // price, up to their limit; sellers ask with their limit. Everything that both sides accept at today's price trades at it:
+    // the highest bidders and the lowest askers first. Then the price moves with the gap between demand and supply.
+    internal static void Auction(World world, Entity market, List<Entity> traders, Dictionary<int, TradePlan> plans, int good)
     {
         ref var state = ref market.GetComponent<Market>();
         var bids = new List<Offer>();
@@ -236,67 +244,49 @@ public static class Markets
         foreach (var t in traders)
         {
             var plan = plans[t.Id];
-            var trader = t.GetComponent<Trader>();
-            int sell = Math.Min(plan.Offered[good], trader.AtMarket[good]);
+            int sell = Math.Min(plan.Offered[good], t.GetComponent<Trader>().AtMarket[good]);
             if (sell > 0) asks.Add(new Offer(t, sell, Traders.AskLimit(world, t, plan, good)));
-            if (plan.Wanted[good] <= 0) continue;
             int limit = Traders.BidLimit(world, t, plan, good);
-            int quantity = Math.Min(plan.Wanted[good], trader.Coins / limit);
-            if (quantity > 0) bids.Add(new Offer(t, quantity, limit));
+            if (plan.Wanted[good] > 0 && t.GetComponent<Trader>().Coins >= limit) bids.Add(new Offer(t, plan.Wanted[good], limit));
         }
         state.Volume[good] = 0;
-        if (bids.Count == 0 && asks.Count == 0) return;
+        if (bids.Count == 0 || asks.Count == 0) return; // nobody (with coins) on the other side: nothing to learn
 
+        int price = state.Price[good] > 0 ? state.Price[good] : OpeningPrice(bids, asks);
         bids.Sort((x, y) => x.Limit != y.Limit ? y.Limit.CompareTo(x.Limit) : x.Trader.Id.CompareTo(y.Trader.Id));
         asks.Sort((x, y) => x.Limit != y.Limit ? x.Limit.CompareTo(y.Limit) : x.Trader.Id.CompareTo(y.Trader.Id));
+        var demand = bids.Where(b => b.Limit >= price)
+            .Select(b => b with { Quantity = Math.Min(b.Quantity, b.Trader.GetComponent<Trader>().Coins / price) })
+            .Where(b => b.Quantity > 0).ToList();
+        var supply = asks.Where(a => a.Limit <= price).ToList();
+        long demanded = demand.Sum(b => (long)b.Quantity), supplied = supply.Sum(a => (long)a.Quantity);
 
-        // Find how much trades and the price: halfway between the last bid and ask that still cross.
-        int i = 0, j = 0, volume = 0, lastBid = 0, lastAsk = 0;
-        int bidLeft = bids.Count > 0 ? bids[0].Quantity : 0, askLeft = asks.Count > 0 ? asks[0].Quantity : 0;
-        while (i < bids.Count && j < asks.Count && bids[i].Limit >= asks[j].Limit)
+        Settle(world, market, demand, supply, good, price);
+
+        // Excess demand pushes the price up, excess supply down, in proportion to the gap.
+        int step = world.Content.Economy.Market.BeliefStepPercent;
+        long gap = demanded - supplied, larger = Math.Max(demanded, supplied);
+        int next = price;
+        if (gap != 0 && larger > 0)
         {
-            int q = Math.Min(bidLeft, askLeft);
-            volume += q;
-            lastBid = bids[i].Limit;
-            lastAsk = asks[j].Limit;
-            bidLeft -= q;
-            askLeft -= q;
-            if (bidLeft == 0 && ++i < bids.Count) bidLeft = bids[i].Quantity;
-            if (askLeft == 0 && ++j < asks.Count) askLeft = asks[j].Quantity;
+            int move = (int)((long)price * step * Math.Abs(gap) / larger / 100);
+            next = price + Math.Sign(gap) * Math.Max(1, move);
         }
+        state.Price[good] = Math.Clamp(next, 1, MaxBelief(world, good));
 
-        var bought = new Dictionary<int, int>();
-        var soldBy = new Dictionary<int, int>();
-        int price = volume > 0 ? (lastBid + lastAsk) / 2 : 0;
-        if (volume > 0)
-        {
-            Settle(world, market, bids, asks, good, price, volume, bought, soldBy);
-            state.Price[good] = price;
-        }
-
-        // Beliefs: everyone at home hears the price; those who missed out adjust further.
+        // Everyone at home hears the price and adjusts what they think the good is worth.
         int player = market.GetComponent<Owner>().Player;
-        if (state.Volume[good] > 0)
+        foreach (var t in traders)
         {
-            foreach (var t in traders)
-            {
-                if (!Traders.IsMerchant(t) && Traders.PlayerOf(t) == player) Pull(world, t, good, price);
-            }
-        }
-        // A buyer outbid (or facing asks above its bid) raises its belief; a seller undercut (or facing bids below
-        // its ask) lowers it. With nobody on the other side there is nothing to learn.
-        foreach (var bid in bids)
-        {
-            if (asks.Count > 0 && bought.GetValueOrDefault(bid.Trader.Id) == 0) Step(world, bid.Trader, good, up: true);
-        }
-        foreach (var ask in asks)
-        {
-            if (bids.Count > 0 && soldBy.GetValueOrDefault(ask.Trader.Id) == 0) Step(world, ask.Trader, good, up: false);
+            if (!Traders.IsMerchant(t) && Traders.PlayerOf(t) == player) Pull(world, t, good, state.Price[good]);
         }
     }
 
-    private static void Settle(World world, Entity market, List<Offer> bids, List<Offer> asks, int good, int price,
-        int volume, Dictionary<int, int> bought, Dictionary<int, int> soldBy)
+    // A first price for a good never traded for coins: halfway between the best bid and the best ask.
+    private static int OpeningPrice(List<Offer> bids, List<Offer> asks) =>
+        Math.Max(1, (bids.Max(b => b.Limit) + asks.Min(a => a.Limit)) / 2);
+
+    private static void Settle(World world, Entity market, List<Offer> bids, List<Offer> asks, int good, int price)
     {
         var rules = world.Content.Economy.Market;
         int player = market.GetComponent<Owner>().Player;
@@ -305,13 +295,13 @@ public static class Markets
         ref var state = ref market.GetComponent<Market>();
 
         int i = 0, j = 0;
-        int bidLeft = bids[0].Quantity, askLeft = asks[0].Quantity;
-        while (volume > 0 && i < bids.Count && j < asks.Count)
+        int bidLeft = bids.Count > 0 ? bids[0].Quantity : 0, askLeft = asks.Count > 0 ? asks[0].Quantity : 0;
+        while (i < bids.Count && j < asks.Count)
         {
             var buyer = bids[i].Trader;
             var seller = asks[j].Trader;
             ref var buyerTrader = ref buyer.GetComponent<Trader>();
-            int q = Math.Min(Math.Min(bidLeft, askLeft), Math.Min(volume, buyerTrader.Coins / Math.Max(1, price)));
+            int q = Math.Min(Math.Min(bidLeft, askLeft), buyerTrader.Coins / price);
             if (q > 0)
             {
                 ref var civ = ref civEntity.GetComponent<Civilization>();
@@ -331,14 +321,11 @@ public static class Markets
                 state.Commission += commission;
                 state.Volume[good] += q;
                 if (buyer.TryGetComponent<Merchant>(out _)) buyer.GetComponent<Merchant>().Bought[good] += q;
-                bought[buyer.Id] = bought.GetValueOrDefault(buyer.Id) + q;
-                soldBy[seller.Id] = soldBy.GetValueOrDefault(seller.Id) + q;
                 civ.Trades++;
                 Economy.Record(world, player, LedgerEntry.MarketTax, tax);
                 Economy.Record(world, player, LedgerEntry.Tariffs, tariff);
                 if (Traders.IsTreasury(buyer)) Economy.Record(world, player, LedgerEntry.Purchases, value);
                 if (Traders.IsTreasury(seller)) Economy.Record(world, player, LedgerEntry.Sales, value);
-                volume -= q;
             }
             bidLeft -= q;
             askLeft -= q;

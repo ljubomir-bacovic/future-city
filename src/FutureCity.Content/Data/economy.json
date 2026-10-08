@@ -1,7 +1,7 @@
 {
   // The economy after Private property: families own goods, trade at the marketplace, later with coins.
   // Prices are never set here. Goods' "value" (goods.json) is only what people first believe things are worth;
-  // every market day each trader adjusts its beliefs to what it could and could not buy or sell.
+  // on market days prices move with supply and demand, and traders' beliefs follow them.
 
   "households": {
     "foodTargetPerMember": 10,  // meals a family wants to keep per member
@@ -28,7 +28,8 @@
   "market": {
     "intervalTicks": 50,        // one market day every 5 s
     "historyLength": 64,        // market days of price history kept for charts
-    "beliefStepPercent": 5,     // a buyer who got nothing raises its belief by this; a seller who sold nothing lowers it
+    "beliefStepPercent": 5,     // with coins: the most a price moves in a day (when only one side turns up);
+                                // in barter: how much a seller whose goods were wanted but not taken lowers its value
     "beliefPullPercent": 25,    // a trader who traded moves its belief this far toward the price paid
     "needPremiumPercent": 30,   // a trader short of a good bids up to this much above its belief
     "surplusDiscountPercent": 20, // a trader with a large surplus asks up to this much below its belief
@@ -44,6 +45,7 @@
   "wages": {
     "rationMeals": 10,          // before coins, public workers the treasury can feed = public meals / this
     "reserveChecks": 5,         // after coins, public workers the treasury can pay for this many job checks
+    "maxPublicPercent": 30,     // the chief calls on at most this share of the adults living in family homes
     "publicPremiumPercent": 10, // public wage = typical income from private work + this
     "switchMarginPercent": 25,  // people change jobs only for this much more income
     "switchesPerCheck": 2,      // most people who change jobs per check (keeps the labour market calm)

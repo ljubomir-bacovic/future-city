@@ -63,18 +63,18 @@ public sealed partial class JobAssignmentSystem
                 ctx.Gatherers[good]++;
         }
 
-        // Private incomes set the going wage; the treasury pays public workers that plus a premium.
-        var incomes = new List<int>();
-        foreach (var unit in units)
-        {
-            var order = unit.GetComponent<Order>();
-            if (order.Public || order.Kind == OrderKind.Idle || !Households.TryGetHome(world, unit, out var home)) continue;
-            int income = Income(world, ctx, home, order);
-            if (income > 0) incomes.Add(income);
-        }
+        // What families could earn working for themselves sets the going wage; the treasury pays that plus a premium.
         ref var civ = ref civEntity.GetComponent<Civilization>();
         if (ctx.Money)
         {
+            var incomes = new List<int>();
+            foreach (var (homeId, people) in members)
+            {
+                var adult = people.FirstOrDefault(p => Bands.IsAdult(world, p.GetComponent<Citizen>()));
+                if (adult.IsNull || !world.TryGetEntity(homeId, out var home) || !ctx.Plans.ContainsKey(homeId)) continue;
+                int income = BestPrivateJob(world, ctx, home, adult).Income;
+                if (income > 0) incomes.Add(income);
+            }
             incomes.Sort();
             int typical = incomes.Count > 0 ? incomes[incomes.Count / 2] : Math.Max(1, civ.PublicWage);
             civ.PublicWage = Math.Max(1, typical * (100 + rules.PublicPremiumPercent) / 100);
@@ -137,9 +137,12 @@ public sealed partial class JobAssignmentSystem
                 Economy.Record(world, ctx.Player, LedgerEntry.Wages, wage);
             }
         }
-        // The treasury can always feed some workers from the public stores; with coins it can pay more.
+        // The treasury can always feed some workers from the public stores; with coins it can pay more. Either way
+        // the chief can call on only a share of the families' adults.
         int capacity = Stores.Meals(world, ctx.Player) / rules.RationMeals
                        + (ctx.Money ? treasury.Coins / Math.Max(1, wage * rules.ReserveChecks) : 0);
+        int housed = units.Count(u => Households.TryGetHome(world, u, out _));
+        capacity = Math.Min(capacity, housed * rules.MaxPublicPercent / 100);
         int working = units.Count(u => IsPublicWorker(world, u));
         for (int k = units.Count - 1; k >= 0 && working > capacity; k--)
         {
