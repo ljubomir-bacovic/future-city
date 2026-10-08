@@ -14,7 +14,8 @@ public sealed record MoveUnits(int[] Units, int X, int Y) : Command
     public override void Execute(World world)
     {
         var units = UnitOrders.Select(world, Player, Units);
-        var spots = UnitOrders.SpreadAround(world, X, Y, units.Count);
+        int x = Math.Clamp(X, 0, world.Map.Width - 1), y = Math.Clamp(Y, 0, world.Map.Height - 1);
+        var spots = UnitOrders.SpreadAround(world, x, y, units.Count);
         for (int i = 0; i < units.Count; i++)
         {
             var unit = units[i];

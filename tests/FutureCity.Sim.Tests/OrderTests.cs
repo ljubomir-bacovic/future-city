@@ -25,6 +25,15 @@ public class OrderTests
     }
 
     [Fact]
+    public void Moving_off_the_map_stops_at_the_edge()
+    {
+        var sim = GameSupport.Plain();
+        var person = GameSupport.Adult(sim, 10, 10);
+        sim.Enqueue(new MoveUnits([person.Id], -500, 10) { Player = Me });
+        GameSupport.RunUntil(sim, () => person.GetComponent<TilePosition>() == new TilePosition(0, 10), 100);
+    }
+
+    [Fact]
     public void Long_routes_beyond_the_cached_segment_still_arrive()
     {
         var sim = GameSupport.Plain();
