@@ -100,3 +100,24 @@ public sealed record AttackMove(int[] Units, int X, int Y) : Command
             units[i].GetComponent<Order>() = new Order { Kind = OrderKind.AttackMove, TargetX = spots[i].X, TargetY = spots[i].Y, Public = true };
     }
 }
+
+/// <summary>
+/// Soldiers carry goods off from an enemy store or family home, or from ruins and spilled cargo, to their own public
+/// stores, a load at a time, until nothing is left. Siege engines cannot carry anything.
+/// </summary>
+/// <param name="Units">Ids of the soldiers.</param>
+/// <param name="Target">Id of the store, home or loot pile.</param>
+public sealed record Loot(int[] Units, int Target) : Command
+{
+    /// <inheritdoc />
+    public override void Execute(World world)
+    {
+        if (!world.TryGetEntity(Target, out var target) || !Combat.CanLoot(world, Player, target)) return;
+        var type = target.HasComponent<LootPile>() ? TargetType.Loot : TargetType.Building;
+        foreach (var unit in UnitOrders.Select(world, Player, Units, Who.Soldiers))
+        {
+            if (Military.TypeOf(world, unit).Role == Content.UnitRole.Siege) continue;
+            unit.GetComponent<Order>() = new Order { Kind = OrderKind.Loot, Target = target.Id, TargetType = type, Public = true };
+        }
+    }
+}

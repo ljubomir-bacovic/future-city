@@ -48,6 +48,37 @@ public sealed partial class OrderSystem
         GoToRally(world, unit);
     }
 
+    // A soldier carries goods off from an enemy store or ruins, a load at a time (the most valuable first), to their own
+    // nearest public store, until nothing is left or the target is gone.
+    private static void UpdateLoot(World world, Entity unit)
+    {
+        if (unit.GetComponent<Citizen>().Carried > 0)
+        {
+            if (Deliver(world, unit) == Progress.Failed) unit.GetComponent<Order>() = new Order { Public = true };
+            return;
+        }
+        ref var order = ref unit.GetComponent<Order>();
+        int player = unit.GetComponent<Owner>().Player;
+        int good = -1;
+        if (!world.TryGetEntity(order.Target, out var target) || !Combat.CanLoot(world, player, target)
+            || (good = Combat.RichestGood(world, target)) < 0)
+        {
+            order = new Order { Public = true };
+            return;
+        }
+        var arrived = ApproachEntity(world, unit, target, reach: 1);
+        if (arrived == Progress.Failed) { order = new Order { Public = true }; return; }
+        if (arrived == Progress.Underway) return;
+        var amounts = target.GetComponent<Inventory>().Amounts;
+        int take = Math.Min(amounts[good], world.Content.Citizens.CarryCapacity);
+        amounts[good] -= take;
+        ref var citizen = ref unit.GetComponent<Citizen>();
+        citizen.CarriedGood = good;
+        citizen.Carried = take;
+        if (target.TryGetComponent<Owner>(out var owner) && owner.Player != Players.Nature)
+            Combat.LoseToLooters(world, owner.Player, target, take);
+    }
+
     private static bool HoldsAll(World world, Entity store, int kind)
     {
         if (!Stores.IsStore(world, store)) return false;

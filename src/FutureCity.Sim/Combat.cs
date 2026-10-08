@@ -51,6 +51,62 @@ public static class Combat
         return Math.Max(world.Content.Military.Combat.MinDamage, defence.Attack - armour);
     }
 
+    /// <summary>Whether soldiers at war with <paramref name="player"/> stand within <paramref name="radius"/> tiles of the entity's footprint.</summary>
+    public static bool EnemiesNear(World world, int player, Entity place, int radius)
+    {
+        foreach (var unit in world.Store.Query<Soldier, Owner, TilePosition>().Entities)
+        {
+            if (!unit.GetComponent<Soldier>().Equipped || !Relations.AtWar(world, player, unit.GetComponent<Owner>().Player)) continue;
+            var pos = unit.GetComponent<TilePosition>();
+            if (Buildings.DistanceTo(world, place, pos.X, pos.Y) <= radius) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Whether enemy soldiers are so close to a marketplace that nobody comes to trade.</summary>
+    public static bool MarketUnderThreat(World world, Entity market) =>
+        Relations.AtWarWithAnyone(world, market.GetComponent<Owner>().Player)
+        && EnemiesNear(world, market.GetComponent<Owner>().Player, market, world.Content.Military.Combat.MarketSafetyRadius);
+
+    /// <summary>
+    /// Whether <paramref name="player"/>'s soldiers may carry goods off from <paramref name="target"/>: ruins and spilled
+    /// cargo, or a store or family home of a civilization at war with them.
+    /// </summary>
+    public static bool CanLoot(World world, int player, Entity target)
+    {
+        if (!target.HasComponent<Inventory>()) return false;
+        if (target.HasComponent<LootPile>()) return true;
+        if (!target.TryGetComponent<Owner>(out var owner) || !Relations.AtWar(world, player, owner.Player)) return false;
+        return Stores.IsStore(world, target) || target.HasComponent<Household>();
+    }
+
+    /// <summary>The most valuable good the target holds (by the goods' starting values; ties to the lowest index), or -1.</summary>
+    public static int RichestGood(World world, Entity target)
+    {
+        var amounts = target.GetComponent<Inventory>().Amounts;
+        int best = -1;
+        for (int g = 0; g < amounts.Length; g++)
+        {
+            if (amounts[g] > 0 && (best < 0 || world.Content.Goods[g].Value > world.Content.Goods[best].Value)) best = g;
+        }
+        return best;
+    }
+
+    /// <summary>Loot carried into a public store of <paramref name="player"/>: counted for the treasury.</summary>
+    internal static void BringLoot(World world, int player, int amount)
+    {
+        if (Civics.TryGet(world, player, out var civ)) civ.GetComponent<Civilization>().Looted += amount;
+        Economy.Record(world, player, LedgerEntry.Loot, amount);
+    }
+
+    /// <summary>Goods carried off from <paramref name="player"/>'s store or home.</summary>
+    internal static void LoseToLooters(World world, int player, Entity from, int amount)
+    {
+        if (Civics.TryGet(world, player, out var civ)) civ.GetComponent<Civilization>().Plundered += amount;
+        var pos = from.GetComponent<TilePosition>();
+        world.Emit(SimEventKind.Plundered, player, from.Id, pos.X, pos.Y, amount);
+    }
+
     /// <summary>Hit points left in a building.</summary>
     public static int HitPointsLeft(World world, Entity building) =>
         Buildings.TypeOf(world, building).Def.HitPoints - building.GetComponent<Building>().Damage;

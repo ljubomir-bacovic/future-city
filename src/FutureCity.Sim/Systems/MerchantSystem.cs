@@ -8,7 +8,8 @@ namespace FutureCity.Sim.Systems;
 /// <summary>
 /// Foreign merchants. Once a player has a marketplace, a caravan sets out from the map edge every visit interval,
 /// walks to the marketplace, trades there for a while like any other trader (paying tariffs), and walks back to the
-/// edge with what it bought. Its coins and goods leave the economy with it.
+/// edge with what it bought. Its coins and goods leave the economy with it. No caravan sets out while enemy soldiers
+/// are near the marketplace, and soldiers at war with the town may raid caravans on their way.
 /// </summary>
 public sealed class MerchantSystem : ISimSystem
 {
@@ -27,6 +28,7 @@ public sealed class MerchantSystem : ISimSystem
                 continue;
             }
             if (world.Tick < civ.NextMerchantTick) continue;
+            if (Combat.MarketUnderThreat(world, market)) continue; // no caravan sets out for a town under attack
             civ.NextMerchantTick = world.Tick + rules.VisitIntervalTicks;
             SpawnCaravan(world, player, market);
         }

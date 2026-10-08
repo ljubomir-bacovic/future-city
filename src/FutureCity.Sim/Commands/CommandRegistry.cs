@@ -40,6 +40,7 @@ public sealed class CommandRegistry
             .Register<SetRallyPoint>("setRallyPoint")
             .Register<Attack>("attack")
             .Register<AttackMove>("attackMove")
+            .Register<Loot>("loot")
             .Register<DeclareWar>("declareWar");
     }
 
