@@ -1,27 +1,29 @@
 {
   // Buildings. size: footprint in tiles (size x size). cost: materials builders must deliver before work starts.
   // buildWork: ticks of work by one builder without tools. requires: condition (see progress.json) that must hold
-  // for the player to place it; empty means always.
+  // for the player to place it; empty means always. hitPoints: damage it takes before it is destroyed (see
+  // military.json). wall: blocks movement once finished; gate: a wall its owner's people can pass through;
+  // defence: it shoots at enemies in range like an archer.
   "buildings": [
     {
       "id": "hut", "name": "Hut", "color": "#a07a4a", "size": 1,
-      "cost": { "wood": 10, "clay": 8 }, "buildWork": 90, "requires": "",
+      "cost": { "wood": 10, "clay": 8 }, "buildWork": 90, "requires": "", "hitPoints": 600,
       "shelter": 4                 // people it houses
     },
     {
       "id": "storehouse", "name": "Storehouse", "color": "#8a6a44", "size": 2,
-      "cost": { "wood": 20 }, "buildWork": 100, "requires": "",
+      "cost": { "wood": 20 }, "buildWork": 100, "requires": "", "hitPoints": 1200,
       "storage": true              // workers drop goods here; a store near the work saves walking
     },
     {
       "id": "shrine", "name": "Shrine", "color": "#b8a27a", "size": 1,
-      "cost": { "wood": 10, "stone": 10 }, "buildWork": 90, "requires": "building.storehouse >= 1",
+      "cost": { "wood": 10, "stone": 10 }, "buildWork": 90, "requires": "building.storehouse >= 1", "hitPoints": 1000,
       "workers": 2,
       "research": 1                // research points per worker per tick, toward the chosen discovery
     },
     {
       "id": "farm", "name": "Farm field", "color": "#9c7a3c", "size": 3,
-      "cost": { "wood": 10 }, "buildWork": 60, "requires": "tech.farming",
+      "cost": { "wood": 10 }, "buildWork": 60, "requires": "tech.farming", "hitPoints": 400,
       "workers": 3,
       "field": {
         "good": "grain",
@@ -35,33 +37,60 @@
     },
     {
       "id": "toolmaker", "name": "Toolmaker", "color": "#6f6a64", "size": 1,
-      "cost": { "wood": 20, "stone": 20 }, "buildWork": 120, "requires": "tech.toolmaking",
+      "cost": { "wood": 20, "stone": 20 }, "buildWork": 120, "requires": "tech.toolmaking", "hitPoints": 800,
       "workers": 1,
       "recipe": { "inputs": { "wood": 2, "stone": 1 }, "outputs": { "tools": 1 }, "workTicks": 60 }
     },
     {
       "id": "mill", "name": "Mill", "color": "#c9b48a", "size": 1,
-      "cost": { "wood": 20, "stone": 20 }, "buildWork": 120, "requires": "tech.farming",
+      "cost": { "wood": 20, "stone": 20 }, "buildWork": 120, "requires": "tech.farming", "hitPoints": 800,
       "workers": 1,
       "recipe": { "inputs": { "grain": 10 }, "outputs": { "flour": 10 }, "workTicks": 20 }
     },
     {
       "id": "bakery", "name": "Bakery", "color": "#b5683f", "size": 1,
-      "cost": { "wood": 15, "clay": 20, "stone": 10 }, "buildWork": 120, "requires": "tech.farming",
+      "cost": { "wood": 15, "clay": 20, "stone": 10 }, "buildWork": 120, "requires": "tech.farming", "hitPoints": 800,
       "workers": 1,
       "recipe": { "inputs": { "flour": 10, "wood": 1 }, "outputs": { "bread": 10 }, "workTicks": 20 }
     },
     {
       "id": "marketplace", "name": "Marketplace", "color": "#c49a5a", "size": 2,
-      "cost": { "wood": 30, "stone": 10 }, "buildWork": 120, "requires": "institution.property",
+      "cost": { "wood": 30, "stone": 10 }, "buildWork": 120, "requires": "institution.property", "hitPoints": 1500,
       "workers": 2,                // market traders: they keep the market running and earn a commission on trade
       "market": true               // households, the treasury and visiting merchants trade here
     },
     {
       "id": "mint", "name": "Mint", "color": "#8d8f96", "size": 1,
-      "cost": { "wood": 20, "stone": 30 }, "buildWork": 150, "requires": "institution.coinage",
+      "cost": { "wood": 20, "stone": 30 }, "buildWork": 150, "requires": "institution.coinage", "hitPoints": 1200,
       "workers": 1,
       "mint": { "silver": 1, "workTicks": 30 } // strikes coins for the treasury from 1 silver per batch
+    },
+    {
+      "id": "stable", "name": "Stable", "color": "#8c6a3c", "size": 2,
+      "cost": { "wood": 30, "stone": 10 }, "buildWork": 120, "requires": "tech.horsemanship", "hitPoints": 1000,
+      "workers": 1,
+      // A horse is fed on grain for years before it can carry a rider.
+      "recipe": { "inputs": { "grain": 20 }, "outputs": { "horses": 1 }, "workTicks": 120 }
+    },
+    {
+      "id": "palisade", "name": "Palisade", "color": "#7a5a34", "size": 1,
+      "cost": { "wood": 4 }, "buildWork": 20, "requires": "building.hut >= 2", "hitPoints": 1200,
+      "wall": true
+    },
+    {
+      "id": "gate", "name": "Gate", "color": "#6a4a2a", "size": 1,
+      "cost": { "wood": 12 }, "buildWork": 40, "requires": "building.hut >= 2", "hitPoints": 1500,
+      "wall": true, "gate": true
+    },
+    {
+      "id": "stone_wall", "name": "Stone wall", "color": "#8a8a84", "size": 1,
+      "cost": { "stone": 6 }, "buildWork": 50, "requires": "tech.toolmaking && era >= 1", "hitPoints": 4000,
+      "wall": true
+    },
+    {
+      "id": "tower", "name": "Watchtower", "color": "#7d7468", "size": 1,
+      "cost": { "wood": 20, "stone": 20 }, "buildWork": 120, "requires": "tech.archery", "hitPoints": 2000,
+      "defence": { "attack": 40, "range": 6, "attackTicks": 12 }
     }
   ]
 }

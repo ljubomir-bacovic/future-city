@@ -65,14 +65,26 @@ public struct Mover : IComponent
     public int RouteLength;
     /// <summary>Index of the next step to take.</summary>
     public int RouteIndex;
+    /// <summary>Player whose gates the entity may pass (its owner, or the market a caravan visits); 0 passes none.</summary>
+    public int Gates;
+    /// <summary>
+    /// Whether the entity marches with a group: while far from <see cref="FlowX"/>, <see cref="FlowY"/> it follows the
+    /// group's shared flow field there, then walks to its own place in the formation (the goal).
+    /// </summary>
+    public bool UseFlow;
+    /// <summary>Where the group is heading (column).</summary>
+    public int FlowX;
+    /// <summary>Where the group is heading (row).</summary>
+    public int FlowY;
 
-    /// <summary>Creates an idle mover with the given speed.</summary>
-    public Mover(int ticksPerTile, int x, int y)
+    /// <summary>Creates an idle mover with the given speed, passing the gates of player <paramref name="gates"/>.</summary>
+    public Mover(int ticksPerTile, int x, int y, int gates = 0)
     {
         this = default;
         TicksPerTile = ticksPerTile;
         GoalX = NextX = x;
         GoalY = NextY = y;
+        Gates = gates;
     }
 
     /// <summary>Fraction of the current step done, in thousandths (for interpolated rendering).</summary>

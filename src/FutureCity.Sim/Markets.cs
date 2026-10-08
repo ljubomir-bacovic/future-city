@@ -306,7 +306,7 @@ public static class Markets
             {
                 ref var civ = ref civEntity.GetComponent<Civilization>();
                 int value = q * price;
-                bool foreign = Traders.IsMerchant(buyer) || Traders.IsMerchant(seller);
+                bool foreign = Traders.IsForeign(buyer) || Traders.IsForeign(seller); // partners under a trade agreement pay no tariff
                 int tax = Traders.IsTreasury(seller) ? 0 : value * civ.MarketTaxPercent / 100;
                 int tariff = foreign ? value * civ.TariffPercent / 100 : 0;
                 int commission = traders.Count > 0 ? value * rules.CommissionPercent / 100 : 0;

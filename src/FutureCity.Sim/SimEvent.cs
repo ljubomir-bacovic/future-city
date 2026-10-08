@@ -29,6 +29,32 @@ public enum SimEventKind
     MerchantsLeft,
     /// <summary>A civilization's people fell into unrest (average happiness too low).</summary>
     Unrest,
+    /// <summary>A paid soldier went home unpaid for good.</summary>
+    Deserted,
+    /// <summary>A soldier or tower hit something (<see cref="SimEvent.Entity"/> = attacker, <see cref="SimEvent.Detail"/> = target id).</summary>
+    Attacked,
+    /// <summary>A person was killed by an enemy (<see cref="SimEvent.Player"/> = the side that lost them).</summary>
+    DiedInBattle,
+    /// <summary>A soldier broke and fled.</summary>
+    Routed,
+    /// <summary>A building was destroyed by enemies (<see cref="SimEvent.Detail"/> = building kind).</summary>
+    BuildingDestroyed,
+    /// <summary>Goods were carried off from a player's store (<see cref="SimEvent.Detail"/> = units).</summary>
+    Plundered,
+    /// <summary>A merchant caravan was attacked and its cargo spilled (<see cref="SimEvent.Player"/> = the market it was bound for).</summary>
+    CaravanRaided,
+    /// <summary>No market day: enemy soldiers are near the marketplace.</summary>
+    MarketClosed,
+    /// <summary>War was declared (<see cref="SimEvent.Player"/> = the declarer, <see cref="SimEvent.Detail"/> = the other side).</summary>
+    WarDeclared,
+    /// <summary>Another civilization made a proposal (<see cref="SimEvent.Player"/> = the receiver, <see cref="SimEvent.Detail"/> = the proposer).</summary>
+    ProposalReceived,
+    /// <summary>A proposal was accepted (<see cref="SimEvent.Player"/> = the proposer, <see cref="SimEvent.Detail"/> = the other side).</summary>
+    ProposalAccepted,
+    /// <summary>A proposal was declined (<see cref="SimEvent.Player"/> = the proposer, <see cref="SimEvent.Detail"/> = the other side).</summary>
+    ProposalDeclined,
+    /// <summary>Tribute could not be paid and the agreement lapsed (<see cref="SimEvent.Player"/> = the payer, <see cref="SimEvent.Detail"/> = the receiver).</summary>
+    TributeLapsed,
 }
 
 /// <summary>

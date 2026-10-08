@@ -35,6 +35,8 @@ public enum FactKind
     Happiness,
     /// <summary>Adults in a social class.</summary>
     Class,
+    /// <summary>Soldiers under arms.</summary>
+    Soldiers,
 }
 
 /// <summary>A resolved fact name, e.g. <c>store.wood</c> = (Store, index of wood).</summary>

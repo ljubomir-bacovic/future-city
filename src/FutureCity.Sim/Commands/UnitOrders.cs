@@ -4,24 +4,25 @@ using FutureCity.Sim.Navigation;
 
 namespace FutureCity.Sim.Commands;
 
-/// <summary>Walk to a tile. A group spreads out over the nearest free tiles around it.</summary>
+/// <summary>
+/// Walk to a tile. A group spreads out over the nearest free tiles around it; a group of soldiers (at least
+/// <see cref="Formations.MinGroup"/> people) marches there in <see cref="Formation"/>.
+/// </summary>
 /// <param name="Units">Ids of the citizens to move.</param>
 /// <param name="X">Target column.</param>
 /// <param name="Y">Target row.</param>
 public sealed record MoveUnits(int[] Units, int X, int Y) : Command
 {
+    /// <summary>How a group of soldiers lines up (Line unless given).</summary>
+    public Formation Formation { get; init; }
+
     /// <inheritdoc />
     public override void Execute(World world)
     {
-        var units = UnitOrders.Select(world, Player, Units);
+        var units = UnitOrders.Select(world, Player, Units, Who.Everyone);
         int x = Math.Clamp(X, 0, world.Map.Width - 1), y = Math.Clamp(Y, 0, world.Map.Height - 1);
-        var spots = UnitOrders.SpreadAround(world, x, y, units.Count);
-        for (int i = 0; i < units.Count; i++)
-        {
-            var unit = units[i];
-            UnitOrders.Assign(unit, OrderKind.Move);
-            Movement.SetGoal(world, ref unit.GetComponent<Mover>(), unit.GetComponent<TilePosition>(), spots[i].X, spots[i].Y);
-        }
+        foreach (var unit in units) UnitOrders.Assign(unit, OrderKind.Move);
+        UnitOrders.Send(world, units, x, y, Formation);
     }
 }
 
@@ -87,12 +88,12 @@ public sealed record ReturnToCamp(int[] Units) : Command
     /// <inheritdoc />
     public override void Execute(World world)
     {
-        foreach (var unit in UnitOrders.Select(world, Player, Units))
+        foreach (var unit in UnitOrders.Select(world, Player, Units, Who.Everyone))
             UnitOrders.Assign(unit, OrderKind.ReturnToCamp);
     }
 }
 
-/// <summary>Bring materials from the stores to one of the player's construction sites and build it.</summary>
+/// <summary>Bring materials from the stores to one of the player's construction sites and build it, or repair a damaged building.</summary>
 /// <param name="Units">Ids of the citizens.</param>
 /// <param name="Target">Id of the construction site.</param>
 public sealed record Build(int[] Units, int Target) : Command
@@ -100,7 +101,9 @@ public sealed record Build(int[] Units, int Target) : Command
     /// <inheritdoc />
     public override void Execute(World world)
     {
-        if (!UnitOrders.TryGetOwnBuilding(world, Player, Target, out var site) || Buildings.IsComplete(site)) return;
+        if (!UnitOrders.TryGetOwnBuilding(world, Player, Target, out var site)
+            || (Buildings.IsComplete(site) && site.GetComponent<Building>().Damage == 0))
+            return;
         foreach (var unit in UnitOrders.Select(world, Player, Units))
             UnitOrders.Assign(unit, OrderKind.Build, site, TargetType.Building, site.GetComponent<Building>().Kind);
     }
@@ -127,11 +130,25 @@ public sealed record AssignWork(int[] Units, int Target) : Command
     }
 }
 
+/// <summary>Which of the selected people an order applies to.</summary>
+internal enum Who
+{
+    /// <summary>Civilians only: soldiers do not gather, build or work.</summary>
+    Civilians,
+    /// <summary>Soldiers only.</summary>
+    Soldiers,
+    /// <summary>Everyone.</summary>
+    Everyone,
+}
+
 /// <summary>Helpers shared by the unit order commands (and automatic job assignment).</summary>
 internal static class UnitOrders
 {
-    /// <summary>The listed units that exist, belong to <paramref name="player"/> and are adults, in id order without duplicates.</summary>
-    public static List<Entity> Select(World world, int player, int[]? ids)
+    /// <summary>
+    /// The listed units that exist, belong to <paramref name="player"/>, are adults and are among <paramref name="who"/>,
+    /// in id order without duplicates.
+    /// </summary>
+    public static List<Entity> Select(World world, int player, int[]? ids, Who who = Who.Civilians)
     {
         var result = new List<Entity>();
         if (ids == null) return result;
@@ -140,7 +157,8 @@ internal static class UnitOrders
             if (!world.TryGetEntity(id, out var unit)
                 || !unit.TryGetComponent<Owner>(out var owner) || owner.Player != player
                 || !unit.TryGetComponent<Citizen>(out var citizen) || !Bands.IsAdult(world, citizen)
-                || !unit.HasComponent<Order>() || !unit.HasComponent<Mover>())
+                || !unit.HasComponent<Order>() || !unit.HasComponent<Mover>()
+                || (who == Who.Civilians && unit.HasComponent<Soldier>()) || (who == Who.Soldiers && !unit.HasComponent<Soldier>()))
                 continue;
             result.Add(unit);
         }
@@ -171,6 +189,20 @@ internal static class UnitOrders
         {
             Kind = OrderKind.Gather, TargetType = TargetType.Tile, TargetKind = terrain, TargetX = x, TargetY = y, Public = true,
         };
+
+    /// <summary>
+    /// Walks the units to (x, y): a group of soldiers marches in formation, anyone else spreads out over the nearest free
+    /// tiles. Returns each unit's destination.
+    /// </summary>
+    public static List<(int X, int Y)> Send(World world, List<Entity> units, int x, int y, Formation formation)
+    {
+        if (units.Count >= Formations.MinGroup && units.Any(u => u.HasComponent<Soldier>()))
+            return Formations.March(world, units, x, y, formation);
+        var spots = SpreadAround(world, x, y, units.Count);
+        for (int i = 0; i < units.Count; i++)
+            Movement.SetGoal(world, ref units[i].GetComponent<Mover>(), units[i].GetComponent<TilePosition>(), spots[i].X, spots[i].Y);
+        return spots;
+    }
 
     /// <summary>The <paramref name="count"/> walkable tiles nearest (x, y), ring by ring in scan order.</summary>
     public static List<(int X, int Y)> SpreadAround(World world, int x, int y, int count)

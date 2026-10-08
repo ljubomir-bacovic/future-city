@@ -7,7 +7,7 @@
   //   store.<good> (held by the treasury and households), gathered.<good>, produced.<good>,
   //   building.<id> (completed), tech.<id>, institution.<id> (0 or 1)
   //   coins (money in circulation), trades (exchanges made so far), happiness (average, 0-100),
-  //   class.<id> (adults in a social class: peasants, craftsmen, merchants, clergy, nobility)
+  //   class.<id> (adults in a social class: peasants, craftsmen, merchants, clergy, nobility), soldiers
   // Operators: || && ! < <= > >= == != + - * / and parentheses.
   "evaluationIntervalTicks": 50,
 
@@ -30,6 +30,20 @@
       "cost": 4000,
       "activity": { "forage": 100, "build": 20 },
       "codex": "Farming did not start with a single idea. Foragers already knew wild plants intimately. Once people stayed in one place, with more mouths to feed than wild food nearby could support, it paid to sow seeds and wait for a harvest. Farming means more food from less land, but harder work, and a bad season can bring famine."
+    },
+    {
+      "id": "archery", "name": "Archery",
+      "preconditions": "gathered.meat >= 200 && tech.toolmaking",
+      "cost": 3000,
+      "activity": { "hunt": 100, "woodcut": 20 },
+      "codex": "Bows are older than farming. Hunters who needed to bring down fast game from a distance learned to bend a springy stave and string it with sinew, and to straighten and fletch arrows. Toolmakers who can shape wood carefully make better bows. The same weapon that fed a band could defend it, or attack its neighbours from out of reach."
+    },
+    {
+      "id": "horsemanship", "name": "Horsemanship",
+      "preconditions": "produced.grain >= 600 && building.farm >= 3",
+      "cost": 4000,
+      "activity": { "farm": 60, "hunt": 40 },
+      "codex": "People hunted wild horses long before they rode them. Taming and breeding horses takes generations, and a horse eats as much grain as several people, so only farming villages with a steady grain surplus could keep them. Riders carry news, goods and warriors far faster than anyone on foot."
     }
   ],
 

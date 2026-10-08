@@ -24,6 +24,8 @@ public sealed class Facts
     public int Trades { get; init; }
     /// <summary>Average happiness of the people (0-100).</summary>
     public int Happiness { get; init; }
+    /// <summary>Soldiers under arms.</summary>
+    public int Soldiers { get; init; }
     /// <summary>Adults in each social class (see <see cref="Society"/>).</summary>
     public required int[] Classes { get; init; }
     /// <summary>Units held by the treasury and households, by good.</summary>
@@ -51,6 +53,7 @@ public sealed class Facts
         FactKind.Coins => Coins,
         FactKind.Trades => Trades,
         FactKind.Happiness => Happiness,
+        FactKind.Soldiers => Soldiers,
         FactKind.Class => Classes[fact.Index],
         FactKind.Store => Store[fact.Index],
         FactKind.Gathered => Gathered[fact.Index],

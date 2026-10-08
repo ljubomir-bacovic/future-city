@@ -34,7 +34,8 @@ public sealed partial class JobAssignmentSystem
         var rules = content.Economy.Wages;
         if (!Civics.TryGet(world, player, out var civEntity)) return;
         var units = World.InIdOrder(world.Store.Query<Citizen, Order, Owner>())
-            .Where(u => u.GetComponent<Owner>().Player == player && Bands.IsAdult(world, u.GetComponent<Citizen>()))
+            .Where(u => u.GetComponent<Owner>().Player == player && Bands.IsAdult(world, u.GetComponent<Citizen>())
+                        && !u.HasComponent<Soldier>()) // soldiers are out of the workforce
             .ToList();
         var members = Households.Members(world, player);
         var ctx = new HouseholdContext
@@ -500,7 +501,7 @@ public sealed partial class JobAssignmentSystem
         Entity worker = default;
         foreach (var unit in people)
         {
-            if (!Bands.IsAdult(world, unit.GetComponent<Citizen>())) continue;
+            if (!Bands.IsAdult(world, unit.GetComponent<Citizen>()) || unit.HasComponent<Soldier>()) continue; // soldiers are on duty
             var order = unit.GetComponent<Order>();
             if (order.Kind == OrderKind.Idle) return unit;
             if (worker.IsNull && order.Auto && order.Public == publicWork && order.Kind is OrderKind.Gather or OrderKind.Hunt

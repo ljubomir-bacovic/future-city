@@ -121,17 +121,17 @@ public partial class EconomyPanel : CanvasLayer
         if (sim == null) return;
         var world = sim.World;
         var content = world.Content;
-        bool families = Economy.HasHouseholds(world, Players.Human);
-        bool money = Economy.HasMoney(world, Players.Human);
-        bool market = Economy.TryGetMarket(world, Players.Human, out var marketplace);
-        if (!Civics.TryGet(world, Players.Human, out var civEntity)) return;
+        bool families = Economy.HasHouseholds(world, _driver.Player);
+        bool money = Economy.HasMoney(world, _driver.Player);
+        bool market = Economy.TryGetMarket(world, _driver.Player, out var marketplace);
+        if (!Civics.TryGet(world, _driver.Player, out var civEntity)) return;
         var civ = civEntity.GetComponent<Civilization>();
 
         _stage.Text = !families ? "Shared stores: the band pools everything it gathers. Private property comes later (R)."
             : money ? "Coins: families sell for money and buy what they need. Prices follow supply, demand and the amount of money."
             : market ? "Barter: families swap goods at the market, when each has what the other wants."
             : "Families keep what they make and pay tribute. A marketplace would let them trade.";
-        if (Economy.HasGuilds(world, Players.Human)) _stage.Text += " Guilds regulate the crafts.";
+        if (Economy.HasGuilds(world, _driver.Player)) _stage.Text += " Guilds regulate the crafts.";
 
         _market.Visible = market;
         if (market) RefreshMarket(world, marketplace, money);
@@ -139,7 +139,7 @@ public partial class EconomyPanel : CanvasLayer
         if (_money.Visible)
         {
             int cpi = Markets.Cpi(world, marketplace);
-            _moneyText.Text = $"Price index {cpi} (100 = prices when coins came in)  ·  money in circulation {Economy.MoneySupply(world, Players.Human)}  ·  " +
+            _moneyText.Text = $"Price index {cpi} (100 = prices when coins came in)  ·  money in circulation {Economy.MoneySupply(world, _driver.Player)}  ·  " +
                               $"coins struck {civ.Minted}  ·  new coins {civ.CoinQuality}% silver";
             _cpiChart.QueueRedraw();
         }
@@ -211,7 +211,7 @@ public partial class EconomyPanel : CanvasLayer
     private void RefreshTreasury(World world, Friflo.Engine.ECS.Entity civEntity, Civilization civ, bool money)
     {
         var content = world.Content;
-        var store = Stores.Totals(world, Players.Human);
+        var store = Stores.Totals(world, _driver.Player);
         _publicStores.Clear();
         _publicStores.AddText("Public stores:  ");
         if (store.Any(n => n > 0)) Art.AddGoods(_publicStores, world, store);
@@ -245,9 +245,9 @@ public partial class EconomyPanel : CanvasLayer
 
     private void RefreshSociety(World world, Civilization civ)
     {
-        var classes = Society.Count(world, Players.Human);
+        var classes = Society.Count(world, _driver.Player);
         string counts = string.Join("  ·  ", classes.Select((n, c) => (n, c)).Where(x => x.n > 0).Select(x => $"{Society.ClassNames[x.c]} {x.n}"));
-        int mood = Society.AverageHappiness(world, Players.Human);
+        int mood = Society.AverageHappiness(world, _driver.Player);
         _societyText.Text = $"{counts}\nHappiness {mood}/100 (work speed {Labor.Productivity(world, mood)}%)" +
                             (civ.Unrest ? "  ·  UNREST: the people are restless. Lower taxes, feed and house them." : "") +
                             $"\nHappiness rises with food, a home, firewood and safety, and falls with taxes and poverty.";
@@ -258,26 +258,26 @@ public partial class EconomyPanel : CanvasLayer
     private void SendTaxes()
     {
         if (_updating || _driver.Simulation == null) return;
-        _driver.Simulation.Enqueue(new SetTaxes((int)_tribute.Value, (int)_marketTax.Value, (int)_tariff.Value) { Player = Players.Human });
+        _driver.Simulation.Enqueue(new SetTaxes((int)_tribute.Value, (int)_marketTax.Value, (int)_tariff.Value) { Player = _driver.Player });
     }
 
     private void SendQuality()
     {
         if (_updating || _driver.Simulation == null) return;
-        _driver.Simulation.Enqueue(new SetCoinQuality((int)_quality.Value) { Player = Players.Human });
+        _driver.Simulation.Enqueue(new SetCoinQuality((int)_quality.Value) { Player = _driver.Player });
     }
 
     private void DrawSparkline(Control chart, int good)
     {
         var world = _driver.Simulation?.World;
-        if (world == null || !Economy.TryGetMarket(world, Players.Human, out var marketplace)) return;
+        if (world == null || !Economy.TryGetMarket(world, _driver.Player, out var marketplace)) return;
         DrawSeries(chart, Markets.History(world, marketplace, good, ChartDays), Line, 1.5f);
     }
 
     private void DrawCpiChart()
     {
         var world = _driver.Simulation?.World;
-        if (world == null || !Economy.TryGetMarket(world, Players.Human, out var marketplace)) return;
+        if (world == null || !Economy.TryGetMarket(world, _driver.Player, out var marketplace)) return;
         var size = _cpiChart.Size;
         _cpiChart.DrawRect(new Rect2(Vector2.Zero, size), new Color(0, 0, 0, 0.25f));
         var cpi = Markets.History(world, marketplace, -1, ChartDays);

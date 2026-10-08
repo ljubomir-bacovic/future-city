@@ -28,7 +28,7 @@ public sealed class NeedsSystem : ISimSystem
             if (citizen.Hunger >= rules.MaxHunger)
                 citizen.Health -= rules.StarvationDamagePerTick;
             else
-                citizen.Health = Math.Min(rules.MaxHealth, citizen.Health + rules.HealthRegenPerTick);
+                citizen.Health = Math.Min(Military.MaxHealth(world, unit), citizen.Health + rules.HealthRegenPerTick);
 
             if (citizen.Health <= 0)
             {

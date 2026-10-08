@@ -4,15 +4,22 @@ using FutureCity.Sim.Random;
 
 namespace FutureCity.Sim.Map;
 
-/// <summary>A generated map and where the player's band starts.</summary>
+/// <summary>A generated map and where each civilization's band starts.</summary>
 /// <param name="Map">The terrain.</param>
-/// <param name="StartX">Starting camp column.</param>
-/// <param name="StartY">Starting camp row.</param>
-public sealed record GeneratedMap(TileMap Map, int StartX, int StartY);
+/// <param name="Starts">Starting camp tile of each civilization, for players 1, 2, … in order.</param>
+public sealed record GeneratedMap(TileMap Map, IReadOnlyList<(int X, int Y)> Starts)
+{
+    /// <summary>Starting camp column of the first civilization.</summary>
+    public int StartX => Starts[0].X;
+
+    /// <summary>Starting camp row of the first civilization.</summary>
+    public int StartY => Starts[0].Y;
+}
 
 /// <summary>
 /// Builds the starting terrain for a new game: lakes and woods shaped by smooth noise, with the band's
 /// start placed on open grassland in the largest connected land area, as close to the map center as possible.
+/// With several civilizations, each starts near its own point spread around the map, as far from the others as the land allows.
 /// </summary>
 public static class MapGenerator
 {
@@ -43,17 +50,22 @@ public static class MapGenerator
             if (elevation[i] >= seaLevel && woods[i] >= treeLine) map.SetTerrain(i % width, i / width, forest);
         }
 
-        var (startX, startY) = ChooseStart(map, content, gen.StartClearRadius);
-        for (int y = startY - gen.StartClearRadius; y <= startY + gen.StartClearRadius; y++)
+        if (setup.Civilizations < 1 || setup.Civilizations > GameSetup.MaxCivilizations)
+            throw new ArgumentException($"A game has 1 to {GameSetup.MaxCivilizations} civilizations, not {setup.Civilizations}.");
+        var starts = ChooseStarts(map, content, gen.StartClearRadius, setup.Civilizations);
+        foreach (var (startX, startY) in starts)
         {
-            for (int x = startX - gen.StartClearRadius; x <= startX + gen.StartClearRadius; x++)
+            for (int y = startY - gen.StartClearRadius; y <= startY + gen.StartClearRadius; y++)
             {
-                if (map.Contains(x, y)) map.SetTerrain(x, y, grass);
+                for (int x = startX - gen.StartClearRadius; x <= startX + gen.StartClearRadius; x++)
+                {
+                    if (map.Contains(x, y)) map.SetTerrain(x, y, grass);
+                }
             }
         }
         AddResources(map, content);
         AddFertility(map, content, water, rng);
-        return new GeneratedMap(map, startX, startY);
+        return new GeneratedMap(map, starts);
     }
 
     // Every tile starts with its terrain's full resource (e.g. wood in forests).
@@ -93,8 +105,13 @@ public static class MapGenerator
         }
     }
 
-    // The tile nearest the center (ring by ring, in scan order) whose surroundings are dry land in the largest area.
-    private static (int X, int Y) ChooseStart(TileMap map, ContentDatabase content, int clearRadius)
+    // Fractions of the map (in quarters) around which each civilization starts: one in the middle, or spread to
+    // opposite corners of the diamond first, then the other two.
+    private static readonly (int X, int Y)[] StartPoints = [(1, 1), (3, 3), (3, 1), (1, 3)];
+
+    // A start per civilization: the tile nearest its point (ring by ring, in scan order) whose surroundings are dry
+    // land in the largest area and that keeps clear of the starts already chosen.
+    private static List<(int X, int Y)> ChooseStarts(TileMap map, ContentDatabase content, int clearRadius, int count)
     {
         var pathfinder = new Pathfinder(map, content);
         var labels = Regions.Label(map, pathfinder, out int regionCount);
@@ -106,18 +123,44 @@ public static class MapGenerator
             if (regionSize[r] > regionSize[largest]) largest = r;
         }
 
-        int cx = map.Width / 2, cy = map.Height / 2;
-        int maxRing = Math.Max(map.Width, map.Height);
-        for (int ring = 0; ring <= maxRing; ring++)
+        var starts = new List<(int X, int Y)>(count);
+        if (count == 1)
         {
-            for (int y = cy - ring; y <= cy + ring; y++)
+            starts.Add(FindStart(map, labels, largest, clearRadius, map.Width / 2, map.Height / 2, starts, 0));
+            return starts;
+        }
+        // Keep camps at least a third of the map apart where the land allows, never closer than two clearings.
+        int separation = Math.Max(Math.Min(map.Width, map.Height) / 3, 4 * clearRadius + 2);
+        for (int i = 0; i < count; i++)
+        {
+            var (qx, qy) = StartPoints[i];
+            starts.Add(FindStart(map, labels, largest, clearRadius, map.Width * qx / 4, map.Height * qy / 4, starts, separation));
+        }
+        return starts;
+    }
+
+    private static (int X, int Y) FindStart(TileMap map, int[] labels, int region, int clearRadius, int cx, int cy,
+        List<(int X, int Y)> taken, int separation)
+    {
+        // Relax the separation step by step if no tile keeps that far from the other starts.
+        for (int apart = separation; ; apart = apart * 2 / 3)
+        {
+            int minApart = Math.Max(apart, taken.Count == 0 ? 0 : 2 * clearRadius + 1);
+            int maxRing = Math.Max(map.Width, map.Height);
+            for (int ring = 0; ring <= maxRing; ring++)
             {
-                for (int x = cx - ring; x <= cx + ring; x++)
+                for (int y = cy - ring; y <= cy + ring; y++)
                 {
-                    if (Math.Max(Math.Abs(x - cx), Math.Abs(y - cy)) != ring) continue;
-                    if (largest != 0 && IsGoodStart(map, labels, largest, x, y, clearRadius)) return (x, y);
+                    for (int x = cx - ring; x <= cx + ring; x++)
+                    {
+                        if (Math.Max(Math.Abs(x - cx), Math.Abs(y - cy)) != ring) continue;
+                        if (region == 0 || !IsGoodStart(map, labels, region, x, y, clearRadius)) continue;
+                        if (taken.Any(t => Math.Max(Math.Abs(t.X - x), Math.Abs(t.Y - y)) < minApart)) continue;
+                        return (x, y);
+                    }
                 }
             }
+            if (minApart <= 2 * clearRadius + 1) break;
         }
         return (cx, cy); // no dry land anywhere: the clearing alone becomes the start area
     }

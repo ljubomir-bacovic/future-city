@@ -59,11 +59,11 @@ public partial class ResearchPanel : CanvasLayer
         foreach (var child in _rows.GetChildren()) child.QueueFree();
         var world = sim.World;
         var content = world.Content;
-        var facts = Civics.FactsOf(world, Players.Human);
-        Civics.TryGet(world, Players.Human, out var civEntity);
+        var facts = Civics.FactsOf(world, _driver.Player);
+        Civics.TryGet(world, _driver.Player, out var civEntity);
         var civ = civEntity.IsNull ? default : civEntity.GetComponent<Civilization>();
 
-        var era = Civics.EraOf(world, Players.Human);
+        var era = Civics.EraOf(world, _driver.Player);
         Heading($"{era.Def.Name}");
         Text(era.Def.Codex, Dim);
         if (era.Index + 1 < content.Eras.Count)
@@ -103,7 +103,7 @@ public partial class ResearchPanel : CanvasLayer
             bool focused = civ.ResearchFocus == tech.Index;
             var focus = new Button { Text = focused ? "Focused" : "Focus", Disabled = focused, FocusMode = Control.FocusModeEnum.None };
             string id = tech.Def.Id;
-            focus.Pressed += () => sim.Enqueue(new SetResearchFocus(id) { Player = Players.Human });
+            focus.Pressed += () => sim.Enqueue(new SetResearchFocus(id) { Player = _driver.Player });
             row.AddChild(focus);
         }
 
@@ -113,7 +113,7 @@ public partial class ResearchPanel : CanvasLayer
             var row = new HBoxContainer();
             _rows.AddChild(row);
             row.AddChild(new Label { Text = institution.Def.Name, CustomMinimumSize = new Vector2(150, 0), TooltipText = institution.Def.Codex, MouseFilter = Control.MouseFilterEnum.Pass });
-            if (Civics.Has(world, Players.Human, institution.Index))
+            if (Civics.Has(world, _driver.Player, institution.Index))
             {
                 row.AddChild(new Label { Text = "Established", Modulate = Met });
                 Text(institution.Def.Codex, Dim);
@@ -123,11 +123,11 @@ public partial class ResearchPanel : CanvasLayer
             var establish = new Button
             {
                 Text = $"Establish ({institution.Def.FoodCost} meals)",
-                Disabled = !Civics.CanEstablish(world, Players.Human, institution.Index, facts),
+                Disabled = !Civics.CanEstablish(world, _driver.Player, institution.Index, facts),
                 FocusMode = Control.FocusModeEnum.None,
             };
             string id = institution.Def.Id;
-            establish.Pressed += () => sim.Enqueue(new EstablishInstitution(id) { Player = Players.Human });
+            establish.Pressed += () => sim.Enqueue(new EstablishInstitution(id) { Player = _driver.Player });
             row.AddChild(establish);
             Text(institution.Def.Codex, Dim);
             if (!possible) Checklist(world, institution.Preconditions, facts);

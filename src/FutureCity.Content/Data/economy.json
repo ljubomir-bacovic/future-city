@@ -69,6 +69,13 @@
     "buyDiscountPercent": 30    // and buy no dearer than world price - this
   },
 
+  // Civilizations with a trade agreement send each other a caravan a year: each treasury's surplus and some of its
+  // coins go to the partner's market, trade there without tariffs, and the proceeds come home. War ends the agreement.
+  "tradeAgreements": {
+    "caravanCargo": 60,         // most units of surplus goods one caravan carries
+    "caravanCoinsPercent": 25   // share of the treasury's coins it takes along to buy with
+  },
+
   "guilds": {
     "outputBonusPercent": 25,   // better methods and less waste: more output per batch
     "marginPercent": 20,        // members never sell below the cost of their inputs + this

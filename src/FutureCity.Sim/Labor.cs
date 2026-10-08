@@ -40,11 +40,11 @@ public static class Labor
         return rules.ProductivityAtZero + (rules.ProductivityAtHundred - rules.ProductivityAtZero) * h / 100;
     }
 
-    /// <summary>A citizen without a tool takes one from <paramref name="store"/> if it has any.</summary>
+    /// <summary>A citizen without a tool takes one from <paramref name="store"/> if it has any (soldiers do not work, so they do not).</summary>
     internal static void PickUpTool(World world, Entity unit, Entity store)
     {
         ref var citizen = ref unit.GetComponent<Citizen>();
-        if (citizen.ToolWear > 0) return;
+        if (citizen.ToolWear > 0 || unit.HasComponent<Soldier>()) return;
         var amounts = store.GetComponent<Inventory>().Amounts;
         if (amounts[world.Content.ToolGood] <= 0) return;
         amounts[world.Content.ToolGood]--;

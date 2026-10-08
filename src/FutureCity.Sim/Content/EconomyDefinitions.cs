@@ -1,5 +1,14 @@
 namespace FutureCity.Sim.Content;
 
+/// <summary>Caravans a treasury sends to a partner's market every year under a trade agreement.</summary>
+public sealed record TradeAgreementRules
+{
+    /// <summary>Most units of surplus goods one caravan carries.</summary>
+    public required int CaravanCargo { get; init; }
+    /// <summary>Share of the treasury's coins a caravan takes along to buy with, in percent.</summary>
+    public required int CaravanCoinsPercent { get; init; }
+}
+
 /// <summary>What households keep and offer.</summary>
 public sealed record HouseholdRules
 {
@@ -196,6 +205,8 @@ public sealed record EconomyRules
     public required WageRules Wages { get; init; }
     /// <summary>Foreign merchants.</summary>
     public required MerchantRules Merchants { get; init; }
+    /// <summary>Caravans between civilizations with a trade agreement.</summary>
+    public required TradeAgreementRules TradeAgreements { get; init; }
     /// <summary>Guilds.</summary>
     public required GuildRules Guilds { get; init; }
     /// <summary>Happiness.</summary>

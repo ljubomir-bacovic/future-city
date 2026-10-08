@@ -98,15 +98,15 @@ The simulation owns all game state and rules; Godot only draws it and sends play
 
 **Goal:** armies cost the economy something, and war has economic consequences.
 
-- [ ] Unit definitions: clubmen, spearmen, archers, cavalry, rams, boats
-- [ ] Recruiting removes workers; units need food, equipment and (later) pay
-- [ ] Levies vs mercenaries depending on available money
-- [ ] Combat: attack, damage, range, armour, morale
-- [ ] Group movement with flow fields and simple formations
-- [ ] Fortifications: palisades, stone walls, gates, towers
-- [ ] Destruction, loot and trade disruption
-- [ ] Diplomacy states: peace, alliance, trade agreement, tribute, war
-- [ ] Godot: combat visuals, health bars, rally points, diplomacy panel
+- [x] Unit definitions: clubmen, spearmen, archers, cavalry, rams (boats come with the Venetians in Phase 7)
+- [x] Recruiting removes workers; units need food, equipment and (later) pay
+- [x] Levies vs mercenaries depending on available money
+- [x] Combat: attack, damage, range, armour, morale
+- [x] Group movement with flow fields and simple formations
+- [x] Fortifications: palisades, stone walls, gates, towers
+- [x] Destruction, loot and trade disruption
+- [x] Diplomacy states: peace, alliance, trade agreement, tribute, war
+- [x] Godot: combat visuals, health bars, rally points, diplomacy panel
 
 **Exit:** two human-controlled test civilizations can fight a war, and the loser's economy visibly suffers.
 

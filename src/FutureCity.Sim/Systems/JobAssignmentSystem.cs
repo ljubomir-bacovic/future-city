@@ -34,7 +34,8 @@ public sealed partial class JobAssignmentSystem : ISimSystem
         var content = world.Content;
         var demand = Demand.Of(world, player);
         var units = World.InIdOrder(world.Store.Query<Citizen, Order, Owner>())
-            .Where(u => u.GetComponent<Owner>().Player == player && Bands.IsAdult(world, u.GetComponent<Citizen>()))
+            .Where(u => u.GetComponent<Owner>().Player == player && Bands.IsAdult(world, u.GetComponent<Citizen>())
+                        && !u.HasComponent<Soldier>()) // soldiers are out of the workforce
             .ToList();
 
         var workers = new Dictionary<int, int>();   // building id -> people working or building there

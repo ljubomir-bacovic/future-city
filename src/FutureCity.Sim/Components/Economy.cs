@@ -91,4 +91,11 @@ public struct Merchant : IComponent
     public int EdgeY;
     /// <summary>Units bought so far, by good.</summary>
     public int[] Bought;
+    /// <summary>
+    /// The civilization that sent it, or 0 for foreign merchants. A caravan sent under a trade agreement trades for its
+    /// treasury and brings the proceeds home to it; one carrying tribute delivers it to the camp it visits.
+    /// </summary>
+    public int From;
+    /// <summary>Whether it carries tribute (to the camp <see cref="Market"/>) rather than coming to trade.</summary>
+    public bool Tribute;
 }

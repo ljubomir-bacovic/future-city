@@ -29,7 +29,8 @@ public sealed partial class OrderSystem : ISimSystem
             switch (unit.GetComponent<Order>().Kind)
             {
                 case OrderKind.Move:
-                    if (!unit.GetComponent<Mover>().Moving) unit.GetComponent<Order>() = default;
+                    // Arrived: stand by (soldiers stay public: they are fed and paid by the treasury).
+                    if (!unit.GetComponent<Mover>().Moving) unit.GetComponent<Order>() = new Order { Public = unit.HasComponent<Soldier>() };
                     break;
                 case OrderKind.ReturnToCamp:
                     UpdateReturnToCamp(world, unit);
@@ -48,6 +49,12 @@ public sealed partial class OrderSystem : ISimSystem
                     break;
                 case OrderKind.Trade:
                     UpdateTrade(world, unit);
+                    break;
+                case OrderKind.Arm:
+                    UpdateArm(world, unit);
+                    break;
+                case OrderKind.Loot:
+                    UpdateLoot(world, unit);
                     break;
             }
         }
@@ -137,6 +144,7 @@ public sealed partial class OrderSystem : ISimSystem
         if (citizen.Carried > 0)
         {
             Stores.Put(store, citizen.CarriedGood, citizen.Carried);
+            if (unit.GetComponent<Order>().Kind == OrderKind.Loot) Combat.BringLoot(world, unit.GetComponent<Owner>().Player, citizen.Carried);
             if (unit.GetComponent<Order>().Kind != OrderKind.Trade && Households.TryGetEmployer(world, unit, out var home))
                 Tribute(world, unit, home, store, citizen.CarriedGood, citizen.Carried);
         }

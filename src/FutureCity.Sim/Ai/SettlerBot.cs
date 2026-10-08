@@ -25,6 +25,9 @@ public sealed class SettlerBot
     /// <summary>The player it controls.</summary>
     public int Player { get; }
 
+    /// <summary>Whether it calls up levies against enemies near its camp (and sends its soldiers home in peacetime).</summary>
+    public bool Defends { get; init; } = true;
+
     /// <summary>How often the bot looks at its settlement.</summary>
     public int IntervalTicks { get; init; } = 10;
 
@@ -39,11 +42,69 @@ public sealed class SettlerBot
         var world = sim.World;
         if (world.Tick % IntervalTicks != 0 || !Bands.TryGetCamp(world, Player, out var camp)) return;
         var facts = Civics.FactsOf(world, Player);
+        AnswerProposals(sim);
+        if (Defends) Defend(sim);
         ChooseResearch(sim, facts);
         EstablishInstitutions(sim, facts);
         PlanBuildings(sim, camp, facts);
         if (Civics.HasAutoJobs(world, Player)) HandOver(sim);
         else DirectLabour(sim, camp, facts);
+    }
+
+    // Enemy soldiers within this distance of the camp are a threat the settler answers.
+    private const int ThreatRadius = 16;
+
+    // When enemy soldiers come near the camp, the settler calls up levies (one more than the enemies) and sends its
+    // soldiers at them; when no enemy is left at war, it sends its soldiers home.
+    private void Defend(Simulation sim)
+    {
+        var world = sim.World;
+        var own = World.InIdOrder(world.Store.Query<Soldier, Owner>()).Where(s => s.GetComponent<Owner>().Player == Player).ToList();
+        if (!Relations.AtWarWithAnyone(world, Player))
+        {
+            if (own.Count > 0) sim.Enqueue(new Disband(own.Select(s => s.Id).ToArray()) { Player = Player });
+            return;
+        }
+        if (!Bands.TryGetCamp(world, Player, out var camp)) return;
+        var at = camp.GetComponent<TilePosition>();
+        var threats = World.InIdOrder(world.Store.Query<Soldier, Owner, TilePosition>())
+            .Where(s => Relations.AtWar(world, Player, s.GetComponent<Owner>().Player)
+                        && s.GetComponent<TilePosition>().DistanceTo(at.X, at.Y) <= ThreatRadius)
+            .ToList();
+        if (threats.Count == 0)
+        {
+            // The danger has passed: soldiers far from the camp come back to guard it.
+            var away = own.Where(s => s.GetComponent<Soldier>().Equipped && s.GetComponent<Order>().Kind == OrderKind.Idle
+                                      && s.GetComponent<TilePosition>().DistanceTo(at.X, at.Y) > 6)
+                .Select(s => s.Id).ToArray();
+            if (away.Length > 0) sim.Enqueue(new MoveUnits(away, at.X, at.Y) { Player = Player });
+            return;
+        }
+        if (own.Count <= threats.Count)
+        {
+            // Spears for as many as there are tools in store, clubs for the rest.
+            var facts = Civics.FactsOf(world, Player);
+            int need = threats.Count + 1 - own.Count;
+            int spears = Military.CanRecruit(world, Player, world.Content.UnitIndex("spearman"), Service.Levy, facts) == Recruitment.Ok
+                ? Math.Min(need, Stores.Total(world, Player, world.Content.ToolGood)) : 0;
+            if (spears > 0) sim.Enqueue(new Recruit("spearman", spears, Service.Levy) { Player = Player });
+            if (need > spears) sim.Enqueue(new Recruit("clubman", need - spears, Service.Levy) { Player = Player });
+        }
+        var idle = own.Where(s => s.GetComponent<Soldier>().Equipped && s.GetComponent<Order>().Kind is OrderKind.Idle or OrderKind.Move)
+            .Select(s => s.Id).ToArray();
+        var nearest = threats.OrderBy(t => t.GetComponent<TilePosition>().DistanceTo(at.X, at.Y)).ThenBy(t => t.Id).First();
+        var target = nearest.GetComponent<TilePosition>();
+        if (idle.Length > 0) sim.Enqueue(new AttackMove(idle, target.X, target.Y) { Player = Player });
+    }
+
+    // A peaceful settler accepts peace whenever it is offered and declines everything else.
+    private void AnswerProposals(Simulation sim)
+    {
+        for (int other = 1; other <= GameSetup.MaxCivilizations; other++)
+        {
+            var kind = Relations.Pending(sim.World, Player, other).Kind;
+            if (kind != ProposalKind.None) sim.Enqueue(new Respond(other, kind == ProposalKind.Peace) { Player = Player });
+        }
     }
 
     // Once a chiefdom organizes labour, people still on the bot's own orders are released so automatic jobs take them.
@@ -54,6 +115,7 @@ public sealed class SettlerBot
         {
             var order = unit.GetComponent<Order>();
             if (unit.GetComponent<Owner>().Player != Player || order.Auto || !Bands.IsAdult(world, unit.GetComponent<Citizen>())
+                || unit.HasComponent<Soldier>()
                 || order.Kind is not (OrderKind.Gather or OrderKind.Hunt or OrderKind.Build or OrderKind.Work))
                 continue;
             var pos = unit.GetComponent<TilePosition>();
@@ -129,7 +191,8 @@ public sealed class SettlerBot
         var world = sim.World;
         var content = world.Content;
         var adults = World.InIdOrder(world.Store.Query<Citizen, Order, Owner>())
-            .Where(u => u.GetComponent<Owner>().Player == Player && Bands.IsAdult(world, u.GetComponent<Citizen>()))
+            .Where(u => u.GetComponent<Owner>().Player == Player && Bands.IsAdult(world, u.GetComponent<Citizen>())
+                        && !u.HasComponent<Soldier>())
             .ToList();
         bool hungry = facts.Food < facts.Population * 15;
         int minFood = hungry ? (adults.Count * 2 + 2) / 3 : (facts.Population + 3) / 4;

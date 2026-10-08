@@ -45,7 +45,7 @@ public sealed class Simulation
         var rng = new Pcg32(setup.Seed);
         var generated = MapGenerator.Generate(setup, content, rng);
         var world = new World(content, setup, generated.Map, rng, tick: 0, nextEntityId: 1);
-        WorldPopulator.Populate(world, generated.StartX, generated.StartY);
+        WorldPopulator.Populate(world, generated.Starts);
         return new Simulation(world, config ?? SimulationConfig.CreateDefault(), [], [], 0);
     }
 

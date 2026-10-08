@@ -24,6 +24,10 @@ public struct Building : IComponent
     public int Kind;
     /// <summary>A workshop's extra output under guilds still to come, in hundredths of a unit.</summary>
     public int Credit;
+    /// <summary>Damage taken; at the type's hit points the building is destroyed. Builders repair it.</summary>
+    public int Damage;
+    /// <summary>For a tower: tick of its next possible shot.</summary>
+    public long ReadyTick;
 }
 
 /// <summary>Present while a building is still being built; removed when it is complete.</summary>

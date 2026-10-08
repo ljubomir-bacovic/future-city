@@ -395,6 +395,14 @@ public sealed record BuildingDef
     public required int BuildWork { get; init; }
     /// <summary>Condition that must hold to place it; empty for always.</summary>
     public required string Requires { get; init; }
+    /// <summary>Damage it takes before it is destroyed.</summary>
+    public required int HitPoints { get; init; }
+    /// <summary>Whether it blocks movement once finished (palisades, walls, gates).</summary>
+    public bool Wall { get; init; }
+    /// <summary>Whether it is a gate: a wall its owner's people can pass through.</summary>
+    public bool Gate { get; init; }
+    /// <summary>How it shoots at enemies, for towers.</summary>
+    public DefenceDef? Defence { get; init; }
     /// <summary>People it houses.</summary>
     public int Shelter { get; init; }
     /// <summary>Whether it is a store where goods are dropped off and taken.</summary>

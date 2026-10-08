@@ -85,6 +85,18 @@ public static class Buildings
         entity.HasComponent<Building>() || entity.HasComponent<Camp>() || entity.HasComponent<Plant>()
         || entity.HasComponent<Deposit>() || entity.HasComponent<Carcass>();
 
+    /// <summary>Rebuilds the map's wall layer from the finished walls and gates (after loading a game).</summary>
+    internal static void RestoreWalls(World world)
+    {
+        foreach (var entity in World.InIdOrder(world.Store.Query<Building, Owner, TilePosition>()))
+        {
+            var def = TypeOf(world, entity).Def;
+            if (!def.Wall || !IsComplete(entity)) continue;
+            var pos = entity.GetComponent<TilePosition>();
+            world.Map.SetWall(pos.X, pos.Y, entity.GetComponent<Owner>().Player, def.Gate);
+        }
+    }
+
     /// <summary>The player's completed buildings of each kind, indexed by building kind.</summary>
     public static int[] CountCompleted(World world, int player)
     {

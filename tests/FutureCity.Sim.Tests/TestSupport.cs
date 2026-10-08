@@ -13,7 +13,8 @@ internal static class TestSupport
 
     public static ContentDatabase Content => LazyContent.Value;
 
-    public static GameSetup Setup(ulong seed = 42, string mapSize = "small") => new() { Seed = seed, MapSize = mapSize };
+    public static GameSetup Setup(ulong seed = 42, string mapSize = "small", int civilizations = 1) =>
+        new() { Seed = seed, MapSize = mapSize, Civilizations = civilizations };
 
     /// <summary>Config with the test commands and systems. Systems are stateless, so a fresh config per sim is fine.</summary>
     public static SimulationConfig Config() => new(

@@ -39,6 +39,7 @@ public static class SaveGame
         writer.WriteStartObject("setup");
         writer.WriteNumber("seed", world.Setup.Seed);
         writer.WriteString("mapSize", world.Setup.MapSize);
+        if (world.Setup.Civilizations != 1) writer.WriteNumber("civilizations", world.Setup.Civilizations);
         writer.WriteEndObject();
 
         writer.WriteNumber("tick", world.Tick);
@@ -106,6 +107,7 @@ public static class SaveGame
             {
                 Seed = setupJson.GetProperty("seed").GetUInt64(),
                 MapSize = setupJson.GetProperty("mapSize").GetString() ?? throw new SaveGameException("Save has no map size."),
+                Civilizations = setupJson.TryGetProperty("civilizations", out var civs) ? civs.GetInt32() : 1,
             };
 
             var rngJson = root.GetProperty("rng");
@@ -120,6 +122,7 @@ public static class SaveGame
             var world = new World(content, setup, map, rng, root.GetProperty("tick").GetInt64(),
                 root.GetProperty("nextEntityId").GetInt32());
             ReadEntities(world, root.GetProperty("entities"));
+            Buildings.RestoreWalls(world);
 
             var pending = ReadCommands(root.GetProperty("pendingCommands"), config.Commands);
             var log = root.TryGetProperty("commandLog", out var logJson) ? ReadCommands(logJson, config.Commands) : [];

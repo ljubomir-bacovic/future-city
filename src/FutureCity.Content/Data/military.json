@@ -1,0 +1,76 @@
+{
+  // Soldiers are the civilization's own adults: recruiting one takes a worker away from their family and work.
+  // Equipment comes out of the public stores (the treasury arms its soldiers), and soldiers eat from the public
+  // stores like other public workers. Health is on the same scale as citizens' (citizens.json maxHealth).
+  //
+  // Unit stats: attack and armour per hit (damage = attack x bonus% - armour, at least combat.minDamage);
+  // range in tiles (1 = next to the target); attackTicks between hits; sightRadius: how far an idle soldier
+  // notices enemies; ticksPerTile on open grassland; morale: starting morale, 0-100 (see combat);
+  // role: front (melee, leads a formation), back (shoots from behind the front) or siege (last; attacks only buildings);
+  // bonuses: damage in percent against a unit id or "building" (100 = normal; buildings default to
+  // combat.buildingDamagePercent).
+  "units": [
+    {
+      "id": "clubman", "name": "Clubman", "color": "#8a6236", "requires": "",
+      "equipment": { "wood": 2 },
+      "health": 1000, "attack": 60, "armour": 0, "range": 1, "attackTicks": 10, "sightRadius": 6, "ticksPerTile": 3,
+      "morale": 45, "role": "front", "bonuses": {},
+      "codex": "The first warriors were hunters who turned their clubs and spears on other people. A club is easy to make from wood, so every band could arm its men, but without training or armour they broke easily against a real army."
+    },
+    {
+      "id": "spearman", "name": "Spearman", "color": "#6f6a64", "requires": "tech.toolmaking",
+      "equipment": { "wood": 2, "tools": 1 },
+      "health": 1000, "attack": 70, "armour": 20, "range": 1, "attackTicks": 10, "sightRadius": 6, "ticksPerTile": 3,
+      "morale": 55, "role": "front", "bonuses": { "cavalry": 200 },
+      "codex": "A spear needs a worked point and a straight shaft, but it lets a farmer keep an enemy at a distance. Spearmen standing close together could stop even charging horses, which is why the spear was the most common weapon in history."
+    },
+    {
+      "id": "archer", "name": "Archer", "color": "#5a7a3a", "requires": "tech.archery",
+      "equipment": { "wood": 4 },
+      "health": 800, "attack": 45, "armour": 0, "range": 5, "attackTicks": 12, "sightRadius": 7, "ticksPerTile": 3,
+      "morale": 45, "role": "back", "bonuses": {},
+      "codex": "Hunters who could bring down deer with a bow could do the same in war. Archers strike from a distance, out of reach of clubs and spears, but they are lightly protected and need others in front of them."
+    },
+    {
+      "id": "cavalry", "name": "Cavalry", "color": "#7a4a2a", "requires": "tech.horsemanship",
+      "equipment": { "horses": 1, "tools": 1 },
+      "health": 1400, "attack": 80, "armour": 20, "range": 1, "attackTicks": 10, "sightRadius": 8, "ticksPerTile": 2,
+      "morale": 65, "role": "front", "bonuses": { "archer": 150 },
+      "codex": "A rider moves faster than anyone on foot and strikes from above. But a horse eats as much grain as several people and must be raised for years before it can carry a warrior, so only a farming society with a large surplus could keep cavalry."
+    },
+    {
+      "id": "ram", "name": "Battering ram", "color": "#5a4632", "requires": "tech.toolmaking && era >= 1",
+      "equipment": { "wood": 40, "tools": 2 },
+      "health": 3000, "attack": 50, "armour": 60, "range": 1, "attackTicks": 20, "sightRadius": 4, "ticksPerTile": 5,
+      "morale": 100, "role": "siege", "bonuses": { "building": 1000 },
+      "codex": "A heavy log under a roof, swung against a gate or wall again and again. Rams are slow and useless against people, but walls that stop any warrior fall to them. Its crew is shown as one soldier pushing it."
+    }
+  ],
+
+  // Levies are called up from the families and serve unpaid; paid soldiers (once there are coins) serve for a wage
+  // and train, so they fight better and hold together longer. Both are taken from the workforce.
+  "service": {
+    "levy":  { "moraleBonus": -10, "attackPercent": 100 },
+    "paid":  { "moraleBonus": 15,  "attackPercent": 120,
+               "wagePercent": 100 } // paid per 100 ticks of service, as a share of the public wage (economy.json wages)
+  },
+
+  "combat": {
+    "minDamage": 5,
+    "buildingDamagePercent": 15,  // ordinary soldiers barely hurt buildings (they burn them slowly); rams are built for it
+    "targetIntervalTicks": 5,     // idle soldiers and towers look for enemies this often
+    "moraleLossPer100Damage": 4,  // morale lost when hit, per 100 damage
+    "allyDeathMoraleLoss": 10,    // morale lost when a soldier of the same side dies nearby...
+    "allyDeathRadius": 5,         // ...within this many tiles
+    "routBelow": 10,              // a soldier whose morale falls below this flees home...
+    "routTicks": 120,             // ...for this long, then returns with half morale
+    "moraleRecoveryPerCheck": 2,  // per job check out of combat, up to the soldier's starting morale
+    "hungryMoraleLoss": 3,        // per job check while hungry
+    "unpaidMoraleLoss": 5,        // per job check a paid soldier could not be paid
+    "desertAfterUnpaidChecks": 6, // a paid soldier unpaid this many checks in a row goes home for good
+    "lootSharePercent": 50,       // share of a destroyed building's goods left in the ruins for looting
+    "lootDecayTicks": 1200,       // ruins and spilled cargo are gone after this long
+    "marketSafetyRadius": 8,      // no market day and no merchants while enemy soldiers are this close to the marketplace
+    "breachRadius": 2             // a soldier stopped by walls attacks enemy walls and gates this close
+  }
+}

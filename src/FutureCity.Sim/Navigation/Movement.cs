@@ -5,6 +5,9 @@ namespace FutureCity.Sim.Navigation;
 /// <summary>Starting, stopping and advancing <see cref="Mover"/>s. Used by commands and systems.</summary>
 public static class Movement
 {
+    /// <summary>A marching unit leaves the group's flow field this close to where the group is heading.</summary>
+    public const int FlowArrivalRadius = 4;
+
     /// <summary>
     /// Sends the mover toward (goalX, goalY). Returns false if it cannot get any closer than it is
     /// (already there, or the goal is unreachable from here).
@@ -13,14 +16,29 @@ public static class Movement
     {
         mover.GoalX = goalX;
         mover.GoalY = goalY;
+        mover.UseFlow = false;
         bool midStep = IsMidStep(mover, position);
         // A step in progress is always finished, so the new route starts from the tile being entered.
         int fromX = midStep ? mover.NextX : position.X, fromY = midStep ? mover.NextY : position.Y;
-        var route = world.Pathfinder.FindRoute(fromX, fromY, goalX, goalY);
+        var route = world.Pathfinder.FindRoute(fromX, fromY, goalX, goalY, mover.Gates);
         mover.SetRoute(route);
         mover.Moving = midStep || route.Count > 0;
         if (!mover.Moving) mover.Progress = 0;
         return route.Count > 0 || (midStep && mover.NextX == goalX && mover.NextY == goalY);
+    }
+
+    /// <summary>
+    /// Sends a group member toward its place (goalX, goalY) in a formation around (flowX, flowY): it follows the group's
+    /// shared flow field until it is near, then walks to its own place.
+    /// </summary>
+    public static void March(World world, ref Mover mover, in TilePosition position, int goalX, int goalY, int flowX, int flowY)
+    {
+        if (!SetGoal(world, ref mover, position, goalX, goalY)) return; // already there, or cannot get any closer
+        if (position.DistanceTo(flowX, flowY) <= FlowArrivalRadius) return; // close enough to walk straight to its place
+        mover.UseFlow = true;
+        mover.FlowX = flowX;
+        mover.FlowY = flowY;
+        mover.SetRoute([]);
     }
 
     /// <summary>Stops after the current step (if any).</summary>
@@ -30,6 +48,7 @@ public static class Movement
         mover.GoalX = midStep ? mover.NextX : position.X;
         mover.GoalY = midStep ? mover.NextY : position.Y;
         mover.SetRoute([]);
+        mover.UseFlow = false;
         mover.Moving = midStep;
     }
 
@@ -66,16 +85,30 @@ public static class Movement
     {
         if (position.X == mover.GoalX && position.Y == mover.GoalY) return false;
         var pathfinder = world.Pathfinder;
-        if (mover.RouteIndex >= mover.RouteLength)
+        int dir = -1;
+        if (mover.UseFlow)
         {
-            // The cached segment is used up (long route) or was empty: plan the next one.
-            var route = pathfinder.FindRoute(position.X, position.Y, mover.GoalX, mover.GoalY);
-            if (route.Count == 0) return false;
-            mover.SetRoute(route);
+            if (position.DistanceTo(mover.FlowX, mover.FlowY) > FlowArrivalRadius)
+                dir = world.FlowField(mover.FlowX, mover.FlowY, mover.Gates).Direction(position.X, position.Y);
+            if (dir < 0)
+            {
+                // Near the group's destination (or the field leads nowhere): walk on to its own place.
+                mover.UseFlow = false;
+                mover.SetRoute([]);
+            }
         }
-
-        int dir = mover.GetStep(mover.RouteIndex++);
-        if (!pathfinder.CanStep(position.X, position.Y, dir)) return false;
+        if (dir < 0)
+        {
+            if (mover.RouteIndex >= mover.RouteLength)
+            {
+                // The cached segment is used up (long route) or was empty: plan the next one.
+                var route = pathfinder.FindRoute(position.X, position.Y, mover.GoalX, mover.GoalY, mover.Gates);
+                if (route.Count == 0) return false;
+                mover.SetRoute(route);
+            }
+            dir = mover.GetStep(mover.RouteIndex++);
+        }
+        if (!pathfinder.CanStep(position.X, position.Y, dir, mover.Gates)) return false;
         mover.NextX = position.X + Pathfinder.Dx[dir];
         mover.NextY = position.Y + Pathfinder.Dy[dir];
         int cost = mover.TicksPerTile * Mover.ProgressPerTick * pathfinder.MoveCost(mover.NextX, mover.NextY) / 100;

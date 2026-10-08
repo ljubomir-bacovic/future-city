@@ -35,6 +35,7 @@ public class ContentLoaderTests
             ["buildings.json"] = Shipped["buildings.json"],
             ["progress.json"] = Shipped["progress.json"],
             ["economy.json"] = Shipped["economy.json"],
+            ["military.json"] = Shipped["military.json"],
         };
 
     private static ContentException LoadFails(Dictionary<string, string> files) =>
@@ -226,5 +227,53 @@ public class ContentLoaderTests
         var c = ContentLoader.Load(Files(ValidRules.Replace("\"width\": 32", "\"width\": 33")));
         Assert.Equal(a.Hash, b.Hash);
         Assert.NotEqual(a.Hash, c.Hash);
+    }
+
+    [Fact]
+    public void Shipped_content_defines_units_and_fortifications()
+    {
+        var content = ContentLoader.Load(GameContent.ReadAll());
+        var spear = content.Units[content.UnitIndex("spearman")];
+        var cavalry = content.UnitIndex("cavalry");
+        Assert.True(spear.BonusVsUnit[cavalry] > 100, "spears are good against horses");
+        Assert.Equal(100, spear.BonusVsUnit[content.UnitIndex("clubman")]);
+        Assert.Equal(content.Military.Combat.BuildingDamagePercent, spear.BuildingBonus);
+        var ram = content.Units[content.UnitIndex("ram")];
+        Assert.Equal(UnitRole.Siege, ram.Role);
+        Assert.True(ram.BuildingBonus > 100);
+        Assert.True(content.Units[cavalry].Equipment[content.GoodIndex("horses")] > 0);
+        Assert.True(content.Buildings[content.BuildingIndex("gate")].Def.Gate);
+        Assert.NotNull(content.Buildings[content.BuildingIndex("tower")].Def.Defence);
+        Assert.True(content.Buildings[content.BuildingIndex("stable")].Outputs[content.GoodIndex("horses")] > 0);
+        Assert.NotNull(content.ResolveFact("soldiers"));
+    }
+
+    [Fact]
+    public void Units_are_validated()
+    {
+        var files = Files();
+        files["military.json"] = files["military.json"]
+            .Replace("\"bonuses\": { \"cavalry\": 200 }", "\"bonuses\": { \"elephant\": 200 }")
+            .Replace("\"role\": \"back\"", "\"role\": \"middle\"")
+            .Replace("\"equipment\": { \"wood\": 4 }", "\"equipment\": { \"bows\": 4 }")
+            .Replace("\"requires\": \"tech.archery\"", "\"requires\": \"tech.gunpowder\"");
+        var errors = LoadFails(files).Errors;
+        Assert.Contains(errors, e => e.Contains("unknown unit 'elephant'"));
+        Assert.Contains(errors, e => e.Contains("role 'middle'"));
+        Assert.Contains(errors, e => e.Contains("unknown good 'bows'"));
+        Assert.Contains(errors, e => e.Contains("unit 'archer' requires"));
+    }
+
+    [Fact]
+    public void A_gate_must_be_a_wall_of_size_one()
+    {
+        var files = Files();
+        files["buildings.json"] = files["buildings.json"]
+            .Replace("\"wall\": true, \"gate\": true", "\"gate\": true")
+            .Replace("\"id\": \"palisade\", \"name\": \"Palisade\", \"color\": \"#7a5a34\", \"size\": 1",
+                "\"id\": \"palisade\", \"name\": \"Palisade\", \"color\": \"#7a5a34\", \"size\": 2");
+        var errors = LoadFails(files).Errors;
+        Assert.Contains(errors, e => e.Contains("'gate' is a gate, so it must also be a wall"));
+        Assert.Contains(errors, e => e.Contains("'palisade' is a wall, so its size must be 1"));
     }
 }

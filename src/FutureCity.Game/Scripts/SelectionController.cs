@@ -10,10 +10,12 @@ using Godot;
 namespace FutureCity.Game;
 
 /// <summary>
-/// Selecting villagers (click, shift-click, drag a box) or a building (click), and giving villagers orders with a
+/// Selecting villagers and soldiers (click, shift-click, drag a box) or a building (click), and giving orders with a
 /// right click: on an animal to hunt; on a bush, carcass, stone or clay deposit to gather; on a forest to cut wood;
-/// on a construction site to build; on a farm, workshop or shrine to work there; on the camp to return; anywhere else
-/// to move. Orders are sent to the simulation as commands; this node holds only UI state.
+/// on a construction site (or a damaged building) to build; on a farm, workshop or shrine to work there; on the camp to
+/// return; anywhere else to move. Soldiers attack an enemy right-clicked, loot ruins, and with Ctrl held loot an enemy
+/// store or home or attack-move over open ground; groups of soldiers march in the chosen <see cref="Formation"/>.
+/// Orders are sent to the simulation as commands; this node holds only UI state.
 /// </summary>
 public partial class SelectionController : Node2D
 {
@@ -34,6 +36,12 @@ public partial class SelectionController : Node2D
     private Color _pingColor;
     private double _pingAge = PingSeconds;
 
+    // Waiting for a click on the map to place the rally point.
+    private bool _placingRally;
+
+    /// <summary>How groups of soldiers line up when they move.</summary>
+    public Sim.Navigation.Formation Formation { get; set; }
+
     /// <summary>Raised when the selection changes.</summary>
     public event Action? SelectionChanged;
 
@@ -53,6 +61,7 @@ public partial class SelectionController : Node2D
         _view = view;
         _map = map;
         _driver.SimulationChanged += () => SetSelection(Array.Empty<int>());
+        _driver.PlayerChanged += () => SetSelection(Array.Empty<int>());
     }
 
     public override void _Process(double delta)
@@ -75,6 +84,12 @@ public partial class SelectionController : Node2D
         if (_driver.Simulation == null) return;
         switch (@event)
         {
+            case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } when _placingRally:
+                _placingRally = false;
+                var spot = _map.LocalToTile(GetGlobalMousePosition());
+                _driver.Simulation.Enqueue(new SetRallyPoint(spot.X, spot.Y) { Player = _driver.Player });
+                (_pingAt, _pingColor, _pingAge) = (GetGlobalMousePosition(), Art.PlayerColor(_driver.Player), 0);
+                break;
             case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } press:
                 _dragStart = _dragNow = press.Position;
                 break;
@@ -86,10 +101,12 @@ public partial class SelectionController : Node2D
                 if (start.DistanceTo(release.Position) < DragThreshold) ClickSelect(release.ShiftPressed);
                 else BoxSelect(new Rect2(start, Vector2.Zero).Expand(release.Position), release.ShiftPressed);
                 break;
-            case InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: true }:
-                IssueOrder();
+            case InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: true } right:
+                _placingRally = false;
+                IssueOrder(right.CtrlPressed);
                 break;
             case InputEventKey { Pressed: true, Keycode: Key.Escape }:
+                _placingRally = false;
                 SetSelection(Array.Empty<int>());
                 break;
             default:
@@ -132,6 +149,20 @@ public partial class SelectionController : Node2D
             return;
         }
     }
+
+    /// <summary>Selects all of the player's soldiers.</summary>
+    public void SelectSoldiers()
+    {
+        var world = _driver.Simulation?.World;
+        if (world == null) return;
+        SetSelection(world.Store.Query<Soldier, Owner>().Entities.Where(IsMine).Select(e => e.Id).ToList());
+    }
+
+    /// <summary>The next left click on the map places the rally point, where new soldiers gather.</summary>
+    public void BeginRallyPoint() => _placingRally = true;
+
+    /// <summary>Whether a click on the map is awaited to place the rally point.</summary>
+    public bool PlacingRally => _placingRally;
 
     /// <summary>Selects all of the player's villagers.</summary>
     public void SelectAllOwn()
@@ -178,12 +209,18 @@ public partial class SelectionController : Node2D
         SetSelection(add ? _selected.Union(inside) : inside);
     }
 
-    private void IssueOrder()
+    private void IssueOrder(bool ctrl)
     {
         var sim = _driver.Simulation!;
         var world = sim.World;
         var units = _selected.Where(id => world.TryGetEntity(id, out var e) && Bands.IsAdult(world, e.GetComponent<Citizen>())).ToArray();
         if (units.Length == 0) return;
+        var soldiers = units.Where(id => world.TryGetEntity(id, out var e) && e.HasComponent<Soldier>()).ToArray();
+        if (soldiers.Length > 0 && IssueMilitaryOrder(sim, soldiers, ctrl))
+        {
+            units = units.Except(soldiers).ToArray(); // civilians in the selection get the ordinary order below
+            if (units.Length == 0) return;
+        }
 
         var target = Pick(world, e => e.HasComponent<Animal>() || e.HasComponent<Carcass>() || e.HasComponent<Plant>()
             || e.HasComponent<Deposit>() || (e.HasComponent<Camp>() && IsMine(e)));
@@ -196,17 +233,45 @@ public partial class SelectionController : Node2D
             (command, _pingColor) = (new ReturnToCamp(units), new Color("#ffffff"));
         else if (target is { } f && Sources.HasGoods(f))
             (command, _pingColor) = (new Gather(units, f.Id), new Color("#ffd24a"));
-        else if (building is { } site && IsMine(site) && !Buildings.IsComplete(site))
+        else if (building is { } site && IsMine(site) && (!Buildings.IsComplete(site) || site.GetComponent<Building>().Damage > 0))
             (command, _pingColor) = (new Build(units, site.Id), new Color("#f2c94c"));
         else if (building is { } work && IsMine(work) && Buildings.TypeOf(world, work).IsWorkplace)
             (command, _pingColor) = (new AssignWork(units, work.Id), new Color("#9ad0ff"));
         else if (Sources.TileInfo(world, tile.X, tile.Y) != null)
             (command, _pingColor) = (new GatherTile(units, tile.X, tile.Y), new Color("#b7e07a"));
         else
-            (command, _pingColor) = (new MoveUnits(units, tile.X, tile.Y), new Color("#7dff8a"));
-        sim.Enqueue(command with { Player = Players.Human });
+            (command, _pingColor) = (new MoveUnits(units, tile.X, tile.Y) { Formation = Formation }, new Color("#7dff8a"));
+        sim.Enqueue(command with { Player = _driver.Player });
         _pingAt = target is { } pinged ? _view.WorldPosition(pinged) : GetGlobalMousePosition();
         _pingAge = 0;
+    }
+
+    // Orders for the selected soldiers: attack an enemy under the mouse, loot ruins (or, with Ctrl, an enemy store or home),
+    // attack-move with Ctrl over open ground. Returns false when the click means an ordinary move.
+    private bool IssueMilitaryOrder(Simulation sim, int[] soldiers, bool ctrl)
+    {
+        var world = sim.World;
+        int me = _driver.Player;
+        var tile = _map.LocalToTile(GetGlobalMousePosition());
+        var enemy = Pick(world, e => (e.HasComponent<Citizen>() || e.HasComponent<Merchant>()) && Combat.IsEnemy(world, me, e));
+        var pile = enemy == null ? Pick(world, e => e.HasComponent<LootPile>()) : null;
+        var building = enemy == null && pile == null ? BuildingUnderMouse(world) : null;
+        var camp = enemy == null && pile == null && building == null ? Pick(world, e => e.HasComponent<Camp>() && !IsMine(e)) : null;
+        Command command;
+        if (pile is { } p)
+            (command, _pingColor) = (new Loot(soldiers, p.Id), new Color("#f2c94c"));
+        else if (ctrl && (building ?? camp) is { } store && Combat.CanLoot(world, me, store))
+            (command, _pingColor) = (new Loot(soldiers, store.Id), new Color("#f2c94c"));
+        else if ((enemy ?? building) is { } foe && Combat.IsEnemy(world, me, foe))
+            (command, _pingColor) = (new Attack(soldiers, foe.Id), new Color("#ff4a3a"));
+        else if (ctrl)
+            (command, _pingColor) = (new AttackMove(soldiers, tile.X, tile.Y) { Formation = Formation }, new Color("#ff8a5a"));
+        else
+            return false;
+        sim.Enqueue(command with { Player = me });
+        _pingAt = (enemy ?? pile ?? building ?? camp) is { } at ? _view.WorldPosition(at) : GetGlobalMousePosition();
+        _pingAge = 0;
+        return true;
     }
 
     // The entity whose sprite is nearest the mouse, within the pick radius.
@@ -241,7 +306,7 @@ public partial class SelectionController : Node2D
 
     private Vector2 BodyCenter(Entity e) => _view.WorldPosition(e) + new Vector2(0, e.HasComponent<Camp>() ? -8 : -10);
 
-    private static bool IsMine(Entity e) => e.TryGetComponent<Owner>(out var owner) && owner.Player == Players.Human;
+    private bool IsMine(Entity e) => e.TryGetComponent<Owner>(out var owner) && owner.Player == _driver.Player;
 
     private void SetSelection(IEnumerable<int> ids)
     {

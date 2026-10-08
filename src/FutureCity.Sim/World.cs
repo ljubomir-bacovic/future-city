@@ -72,6 +72,17 @@ public sealed class World
     private int[]? _regionLabels;
     private int _regionVersion;
 
+    // Flow fields of groups on the march, by goal and gates. A cache only (looked up, never iterated).
+    private readonly Dictionary<(int X, int Y, int Gates), FlowField> _flowFields = [];
+
+    /// <summary>The flow field toward (x, y) for units passing <paramref name="gates"/>' gates, built when first needed.</summary>
+    internal FlowField FlowField(int x, int y, int gates)
+    {
+        if (_flowFields.TryGetValue((x, y, gates), out var field) && field.Version == Map.Version) return field;
+        if (_flowFields.Count >= 32) _flowFields.Clear();
+        return _flowFields[(x, y, gates)] = Navigation.FlowField.Build(Map, Pathfinder, x, y, gates);
+    }
+
     /// <summary>Civilization entity id per player, filled on first lookup. A cache only (lookups only, never iterated).</summary>
     internal Dictionary<int, int> CivilizationIds { get; } = [];
 

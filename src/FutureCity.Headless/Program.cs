@@ -27,6 +27,10 @@ public static class Program
           --games <n>       Run n games with seeds seed, seed+1, ... (default 1)
           --player <name>   Who plays: settle (stand-in bot that builds and farms, default),
                             forage (stand-in bot that only forages) or idle (no orders)
+          --civs <n>        Civilizations on the map, 1-4 (default 1); each is played by --player
+                            and gets its own report row (seed/p2 …)
+          --war-at <s>      With --civs 2 or more: at this game second the last civilization raids
+                            player 1 (stand-in war bot: musters, loots, burns, then makes peace)
           --timeline        Print the band's state every game minute (single game)
           --debase-at <s>   At this game second, set the coin quality to --quality (inflation experiments)
           --quality <n>     Coin quality in percent for --debase-at (default 50)
@@ -64,6 +68,8 @@ public static class Program
 
         if (options.Games > 1 && (options.SavePath != null || options.LoadPath != null))
             throw new ArgumentException("--save and --load work with a single game only.");
+        if (options.WarAt != null && options.Civilizations < 2)
+            throw new ArgumentException("--war-at needs --civs 2 or more.");
 
         Console.WriteLine($"content {content.Hash[..12]}  ticks {options.Ticks}  games {options.Games}  player {options.Player}");
         Console.WriteLine();
@@ -77,34 +83,44 @@ public static class Program
                 {
                     Seed = options.Seed + (ulong)game,
                     MapSize = options.MapSize ?? content.Rules.DefaultMapSize,
+                    Civilizations = options.Civilizations,
                 });
 
-            Action<Simulation>? bot = options.Player switch
+            var players = Enumerable.Range(Players.Human, sim.World.Setup.Civilizations).ToList();
+            var bots = new List<Action<Simulation>>();
+            foreach (int player in players)
             {
-                "settle" => new SettlerBot(Players.Human).Act,
-                "forage" => new ForagingBot(Players.Human).Act,
-                _ => null,
-            };
-            var stats = new GameStats();
+                bool raider = options.WarAt != null && player == players[^1] && player != Players.Human;
+                Action<Simulation>? bot = raider ? new WarBot(player, Players.Human, SimClock.FromSeconds(options.WarAt!.Value)).Act : options.Player switch
+                {
+                    "settle" => new SettlerBot(player).Act,
+                    "forage" => new ForagingBot(player).Act,
+                    _ => null,
+                };
+                if (bot != null) bots.Add(bot);
+            }
+            var stats = players.ToDictionary(p => p, p => new GameStats(p));
             if (options.Timeline) PrintHeader();
             var timer = Stopwatch.StartNew();
             for (int i = 0; i < options.Ticks; i++)
             {
-                bot?.Invoke(sim);
+                foreach (var bot in bots) bot(sim);
                 if (options.DebaseAt is { } debase && sim.World.Tick == SimClock.FromSeconds(debase))
                     sim.Enqueue(new SetCoinQuality(options.Quality) { Player = Players.Human });
                 if (options.ShockAt is { } shock && sim.World.Tick == SimClock.FromSeconds(shock))
                     DestroyHalf(sim.World, sim.World.Content.GoodIndex("grain"));
                 sim.Step();
-                stats.Count(sim.World.Events, sim.World.Tick);
+                foreach (var s in stats.Values) s.Count(sim.World.Events, sim.World.Tick);
                 if (options.Timeline && sim.World.Tick % SimClock.FromSeconds(60) == 0)
-                    PrintRow(sim, stats, ticksPerSecond: null);
+                {
+                    foreach (int player in players) PrintRow(sim, player, stats[player], ticksPerSecond: null);
+                }
             }
             timer.Stop();
 
             double ticksPerSecond = options.Ticks / Math.Max(timer.Elapsed.TotalSeconds, 1e-9);
             if (options.Timeline) Console.WriteLine();
-            PrintRow(sim, stats, ticksPerSecond);
+            foreach (int player in players) PrintRow(sim, player, stats[player], ticksPerSecond);
 
             if (options.SavePath != null)
             {
@@ -128,37 +144,41 @@ public static class Program
         Console.WriteLine($"{"seed",-12} {"map",-7} {"time",6} {"pop",4} {"kids",4} {"food",6} {"born",5} {"starved",7} {"old",4} " +
                           $"{"deer",5} {"huts",4} {"farms",5} {"wood",5} {"stone",5} {"tools",5} {"bread",5} {"techs",5} {"era",-10} " +
                           $"{"reached",7} {"prop",5} {"coin",5} {"guild",5} {"coins",7} {"cpi",4} {"grain$",6} {"bread$",6} " +
-                          $"{"tools$",6} {"happy",5} {"ticks/s",9}  state hash");
+                          $"{"tools$",6} {"happy",5} {"sold",4} {"fallen",6} {"lost",4} {"loot",5} {"plund",5} {"trades",6} " +
+                          $"{"ticks/s",9}  state hash");
 
-    private static void PrintRow(Simulation sim, GameStats stats, double? ticksPerSecond)
+    private static void PrintRow(Simulation sim, int player, GameStats stats, double? ticksPerSecond)
     {
         var w = sim.World;
-        var census = Bands.CensusOf(w, Players.Human);
-        int food = Economy.Meals(w, Players.Human);
+        string game = player == Players.Human ? $"{w.Setup.Seed}" : $"{w.Setup.Seed}/p{player}";
+        var civ = Civics.TryGet(w, player, out var civEntity) ? civEntity.GetComponent<Civilization>() : default;
+        var census = Bands.CensusOf(w, player);
+        int food = Economy.Meals(w, player);
         int deer = w.Store.Query<Animal>().Count;
-        var store = Economy.Holdings(w, Players.Human);
-        var built = Buildings.CountCompleted(w, Players.Human);
+        var store = Economy.Holdings(w, player);
+        var built = Buildings.CountCompleted(w, player);
         int Built(string id) => built[w.Content.BuildingIndex(id)];
         int Stock(string id) => store[w.Content.GoodIndex(id)];
-        int techs = w.Content.Techs.Count(t => Civics.Knows(w, Players.Human, t.Index));
-        string era = Civics.EraOf(w, Players.Human).Def.Id;
+        int techs = w.Content.Techs.Count(t => Civics.Knows(w, player, t.Index));
+        string era = Civics.EraOf(w, player).Def.Id;
         string reached = stats.EraTick is { } tick ? FormatGameTime(tick) : "-";
         string speed = ticksPerSecond is { } tps ? tps.ToString("F0", CultureInfo.InvariantCulture) : "";
         string When(string institution) =>
             stats.Established.TryGetValue(w.Content.InstitutionIndex(institution), out long t) ? FormatGameTime(t) : "-";
-        bool money = Economy.HasMoney(w, Players.Human);
-        Economy.TryGetMarket(w, Players.Human, out var market);
+        bool money = Economy.HasMoney(w, player);
+        Economy.TryGetMarket(w, player, out var market);
         int cpi = market.IsNull ? 0 : Markets.Cpi(w, market);
-        string Price(string id) => money ? Economy.Price(w, Players.Human, w.Content.GoodIndex(id)).ToString(CultureInfo.InvariantCulture) : "-";
+        string Price(string id) => money ? Economy.Price(w, player, w.Content.GoodIndex(id)).ToString(CultureInfo.InvariantCulture) : "-";
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"{w.Setup.Seed,-12} {w.Setup.MapSize,-7} {FormatGameTime(w.Tick),6} {census.Total,4} {census.Children,4} {food,6} {stats.Births,5} " +
+            $"{game,-12} {w.Setup.MapSize,-7} {FormatGameTime(w.Tick),6} {census.Total,4} {census.Children,4} {food,6} {stats.Births,5} " +
             $"{stats.Starved,7} {stats.OldAge,4} {deer,5} {Built("hut"),4} {Built("farm"),5} {Stock("wood"),5} {Stock("stone"),5} " +
             $"{Stock("tools"),5} {Stock("bread"),5} {techs,5} {era,-10} {reached,7} {When("property"),5} {When("coinage"),5} " +
-            $"{When("guilds"),5} {Economy.MoneySupply(w, Players.Human),7} {cpi,4} {Price("grain"),6} {Price("bread"),6} " +
-            $"{Price("tools"),6} {Society.AverageHappiness(w, Players.Human),5} {speed,9}  {SaveGame.StateHash(sim)[..16]}"));
+            $"{When("guilds"),5} {Economy.MoneySupply(w, player),7} {cpi,4} {Price("grain"),6} {Price("bread"),6} " +
+            $"{Price("tools"),6} {Society.AverageHappiness(w, player),5} {Military.Count(w, player),4} {civ.BattleDeaths,6} " +
+            $"{civ.BuildingsLost,4} {civ.Looted,5} {civ.Plundered,5} {civ.Trades,6} {speed,9}  {SaveGame.StateHash(sim)[..16]}"));
     }
 
-    private sealed class GameStats
+    private sealed class GameStats(int player)
     {
         public int Births, Starved, OldAge, Kills;
         public long? EraTick;
@@ -171,14 +191,14 @@ public static class Program
             Tick = tick;
             foreach (var e in events)
             {
-                if (e.Player != Players.Human && e.Kind != SimEventKind.AnimalKilled) continue;
+                if (e.Player != player && e.Kind != SimEventKind.AnimalKilled) continue;
                 switch (e.Kind)
                 {
                     case SimEventKind.Birth: Births++; break;
                     case SimEventKind.DiedOfStarvation: Starved++; break;
                     case SimEventKind.DiedOfOldAge: OldAge++; break;
                     case SimEventKind.AnimalKilled: Kills++; break;
-                    case SimEventKind.EraReached: EraTick = e.Player == Players.Human ? Tick : EraTick; break;
+                    case SimEventKind.EraReached: EraTick = Tick; break;
                     case SimEventKind.InstitutionEstablished: Established.TryAdd(e.Detail, Tick); break;
                 }
             }
@@ -197,6 +217,7 @@ public static class Program
         public string? MapSize { get; private init; }
         public int Ticks { get; private init; } = 600;
         public int Games { get; private init; } = 1;
+        public int Civilizations { get; private init; } = 1;
         public string? LoadPath { get; private init; }
         public string? SavePath { get; private init; }
         public string? ContentDir { get; private init; }
@@ -205,6 +226,7 @@ public static class Program
         public int? DebaseAt { get; private init; }
         public int Quality { get; private init; } = 50;
         public int? ShockAt { get; private init; }
+        public int? WarAt { get; private init; }
         public bool Help { get; private init; }
 
         public static Options Parse(string[] args)
@@ -219,6 +241,7 @@ public static class Program
                     "--map" => options with { MapSize = Value() },
                     "--ticks" => options with { Ticks = PositiveInt(Value(), "--ticks") },
                     "--games" => options with { Games = PositiveInt(Value(), "--games") },
+                    "--civs" => options with { Civilizations = Civs(Value()) },
                     "--load" => options with { LoadPath = Value() },
                     "--save" => options with { SavePath = Value() },
                     "--content" => options with { ContentDir = Value() },
@@ -227,6 +250,7 @@ public static class Program
                     "--debase-at" => options with { DebaseAt = PositiveInt(Value(), "--debase-at") },
                     "--quality" => options with { Quality = Percent(Value(), "--quality") },
                     "--shock-at" => options with { ShockAt = PositiveInt(Value(), "--shock-at") },
+                    "--war-at" => options with { WarAt = PositiveInt(Value(), "--war-at") },
                     "--help" or "-h" => options with { Help = true },
                     _ => throw new ArgumentException($"Unknown option '{args[i]}'. Use --help."),
                 };
@@ -236,6 +260,11 @@ public static class Program
 
         private static string PlayerName(string value) =>
             value is "settle" or "forage" or "idle" ? value : throw new ArgumentException("--player must be 'settle', 'forage' or 'idle'.");
+
+        private static int Civs(string value) =>
+            PositiveInt(value, "--civs") is var n and >= 1 and <= GameSetup.MaxCivilizations
+                ? n
+                : throw new ArgumentException($"--civs must be from 1 to {GameSetup.MaxCivilizations}.");
 
         private static int Percent(string value, string name) =>
             PositiveInt(value, name) is var n and >= 1 and <= 100 ? n : throw new ArgumentException($"{name} must be a percentage from 1 to 100.");

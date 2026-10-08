@@ -29,12 +29,15 @@ public sealed class SimulationConfig
     private static ISimSystem[] DefaultSystems() =>
     [
         // Execution order matters: idle people find jobs, orders decide where people go, movement moves them,
-        // then needs and life events, families, nature, the market and merchants, happiness, and finally the
-        // emergence engine looks at the resulting society.
+        // soldiers fight, then needs, soldiers' pay and morale, and life events, families, nature, the market,
+        // merchants and agreements between civilizations, happiness, and finally the emergence engine looks at the
+        // resulting society.
         new JobAssignmentSystem(),
         new OrderSystem(),
         new MovementSystem(),
+        new CombatSystem(),
         new NeedsSystem(),
+        new SoldierSystem(),
         new AgingSystem(),
         new PopulationSystem(),
         new HouseholdSystem(),
@@ -44,6 +47,7 @@ public sealed class SimulationConfig
         new CarcassSystem(),
         new MarketSystem(),
         new MerchantSystem(),
+        new DiplomacySystem(),
         new HappinessSystem(),
         new EmergenceSystem(),
     ];
