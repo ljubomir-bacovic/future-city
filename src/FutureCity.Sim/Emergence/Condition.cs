@@ -27,6 +27,14 @@ public enum FactKind
     Tech,
     /// <summary>1 if an institution is established.</summary>
     Institution,
+    /// <summary>Coins held by the treasury and households.</summary>
+    Coins,
+    /// <summary>Exchanges made at the marketplace so far.</summary>
+    Trades,
+    /// <summary>Average happiness.</summary>
+    Happiness,
+    /// <summary>Adults in a social class.</summary>
+    Class,
 }
 
 /// <summary>A resolved fact name, e.g. <c>store.wood</c> = (Store, index of wood).</summary>

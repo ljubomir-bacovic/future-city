@@ -60,6 +60,8 @@ public sealed record SeasonDef
     public required bool Sowing { get; init; }
     /// <summary>Whether ripe crops still in the field are lost.</summary>
     public required bool CropsRot { get; init; }
+    /// <summary>Wood each household burns per member at the start of the season.</summary>
+    public int FirewoodPerMember { get; init; }
 }
 
 /// <summary>The calendar: year length and seasons.</summary>
@@ -131,8 +133,14 @@ public sealed record GoodDef
     public required string Color { get; init; }
     /// <summary>Food value per unit in percent of a ration; 0 if not food.</summary>
     public required int Nutrition { get; init; }
-    /// <summary>Stock the band aims for per person; drives automatic job assignment.</summary>
+    /// <summary>Stock the band (later the treasury) aims for per person; drives the chief's job assignment.</summary>
     public required int TargetPerCapita { get; init; }
+    /// <summary>What people first believe a unit is worth, in coins; also the merchants' world price.</summary>
+    public required int Value { get; init; }
+    /// <summary>Units a household wants to keep per member (food is counted in meals instead).</summary>
+    public int HouseholdTarget { get; init; }
+    /// <summary>Weight in the consumer price index.</summary>
+    public int CpiWeight { get; init; }
 }
 
 /// <summary>How tools work.</summary>
@@ -399,6 +407,19 @@ public sealed record BuildingDef
     public RecipeDef? Recipe { get; init; }
     /// <summary>Crop growing, for farms.</summary>
     public FieldDef? Field { get; init; }
+    /// <summary>Whether it is a marketplace.</summary>
+    public bool Market { get; init; }
+    /// <summary>Coin striking, for a mint.</summary>
+    public MintDef? Mint { get; init; }
+}
+
+/// <summary>How a mint strikes coins.</summary>
+public sealed record MintDef
+{
+    /// <summary>Silver used per batch.</summary>
+    public required int Silver { get; init; }
+    /// <summary>Ticks of work per batch without tools.</summary>
+    public required int WorkTicks { get; init; }
 }
 
 /// <summary>A technology (progress.json).</summary>
@@ -431,8 +452,21 @@ public sealed record InstitutionDef
     public required int FoodCost { get; init; }
     /// <summary>Whether idle citizens then take up work automatically, by demand.</summary>
     public bool AutoJobs { get; init; }
+    /// <summary>How it changes the economy.</summary>
+    public InstitutionEffects? Effects { get; init; }
     /// <summary>Codex text: why it emerged.</summary>
     public required string Codex { get; init; }
+}
+
+/// <summary>Economic effects of an institution.</summary>
+public sealed record InstitutionEffects
+{
+    /// <summary>Households own goods; the treasury takes tribute.</summary>
+    public bool Households { get; init; }
+    /// <summary>Trade in coins, wages and money taxes.</summary>
+    public bool Money { get; init; }
+    /// <summary>Crafts are regulated by guilds.</summary>
+    public bool Guilds { get; init; }
 }
 
 /// <summary>An era (progress.json).</summary>

@@ -1,14 +1,17 @@
 using Friflo.Engine.ECS;
 using FutureCity.Sim.Components;
+using FutureCity.Sim.Emergence;
 using FutureCity.Sim.Navigation;
 
 namespace FutureCity.Sim.Systems;
 
 /// <summary>
-/// Carries out citizens' orders: gathering and hunting, building, and work at farms, workshops and shrines.
-/// Goods are carried by people: gatherers walk loads to the nearest store, builders and craftsmen fetch materials
-/// from stores, so distance sets how much gets done. When a source runs out, workers move on to the nearest
-/// similar one nearby, so an unattended band keeps stripping the area around it.
+/// Carries out citizens' orders: gathering and hunting, building, work at farms, workshops, shrines, mints and
+/// marketplaces, and trips to market. Goods are carried by people: gatherers walk loads to the nearest store,
+/// builders and craftsmen fetch materials from stores, so distance sets how much gets done. Once families own their
+/// goods, people working for their family carry loads home and fetch from home instead, and loads owed as tribute go
+/// to the nearest public store. When a source runs out, workers move on to the nearest similar one nearby, so an
+/// unattended band keeps stripping the area around it.
 /// </summary>
 public sealed partial class OrderSystem : ISimSystem
 {
@@ -43,13 +46,17 @@ public sealed partial class OrderSystem : ISimSystem
                 case OrderKind.Work:
                     UpdateWork(world, unit);
                     break;
+                case OrderKind.Trade:
+                    UpdateTrade(world, unit);
+                    break;
             }
         }
     }
 
     private static void UpdateReturnToCamp(World world, Entity unit)
     {
-        var result = GoToCamp(world, unit);
+        // Someone working for their family takes what they carry home rather than to the camp.
+        var result = Households.TryGetEmployer(world, unit, out _) ? Deliver(world, unit) : GoToCamp(world, unit);
         if (result != Progress.Underway) unit.GetComponent<Order>() = default;
     }
 
@@ -98,32 +105,74 @@ public sealed partial class OrderSystem : ISimSystem
         return Progress.Arrived;
     }
 
-    // Walks what is carried to the nearest store.
+    // Walks what is carried to where it belongs: the worker's home, or the nearest public store (for public work, for
+    // people living at the camp, and for loads owed as tribute).
     private static Progress Deliver(World world, Entity unit)
     {
         if (unit.GetComponent<Citizen>().Carried == 0) return Progress.Arrived;
-        var pos = unit.GetComponent<TilePosition>();
-        if (!Stores.TryFindNearest(world, unit.GetComponent<Owner>().Player, pos.X, pos.Y, out var store)) return Progress.Failed;
+        if (!TryFindDropOff(world, unit, out var store)) return Progress.Failed;
         var result = ApproachEntity(world, unit, store, reach: 1);
         if (result != Progress.Arrived) return result;
         DropOff(world, unit, store);
         return Progress.Arrived;
     }
 
+    private static bool TryFindDropOff(World world, Entity unit, out Entity store)
+    {
+        var pos = unit.GetComponent<TilePosition>();
+        int player = unit.GetComponent<Owner>().Player;
+        if (!Households.TryGetEmployer(world, unit, out var home))
+            return Stores.TryFindNearest(world, player, pos.X, pos.Y, out store);
+        var citizen = unit.GetComponent<Citizen>();
+        bool owesThisLoad = unit.GetComponent<Order>().Kind != OrderKind.Trade
+                            && home.GetComponent<Household>().TributeOwed[citizen.CarriedGood] >= citizen.Carried * 100;
+        if (owesThisLoad && Stores.TryFindNearest(world, player, pos.X, pos.Y, out store)) return true;
+        store = home;
+        return true;
+    }
+
     private static void DropOff(World world, Entity unit, Entity store)
     {
         ref var citizen = ref unit.GetComponent<Citizen>();
-        if (citizen.Carried > 0) Stores.Put(store, citizen.CarriedGood, citizen.Carried);
+        if (citizen.Carried > 0)
+        {
+            Stores.Put(store, citizen.CarriedGood, citizen.Carried);
+            if (unit.GetComponent<Order>().Kind != OrderKind.Trade && Households.TryGetEmployer(world, unit, out var home))
+                Tribute(world, unit, home, store, citizen.CarriedGood, citizen.Carried);
+        }
         citizen.Carried = 0;
         Labor.PickUpTool(world, unit, store);
     }
 
-    // Walks to the nearest store holding the order's good and takes up to `amount` of it (at most a full load).
+    // A family owes tribute on what its members bring home, and pays it by delivering whole loads to public stores.
+    private static void Tribute(World world, Entity unit, Entity home, Entity store, int good, int amount)
+    {
+        ref var household = ref home.GetComponent<Household>();
+        int player = unit.GetComponent<Owner>().Player;
+        if (store.Id == home.Id)
+        {
+            if (Civics.TryGet(world, player, out var civ))
+                household.TributeOwed[good] += amount * civ.GetComponent<Civilization>().TributePercent;
+            return;
+        }
+        household.TributeOwed[good] = Math.Max(0, household.TributeOwed[good] - amount * 100);
+        Economy.Record(world, player, LedgerEntry.Tribute, amount);
+    }
+
+    // Where a worker takes a good from: their home (working for their family) or the nearest public store holding it.
+    private static bool TryFindSupply(World world, Entity unit, int good, out Entity store)
+    {
+        if (Households.TryGetEmployer(world, unit, out store))
+            return store.GetComponent<Inventory>().Amounts[good] > 0;
+        var pos = unit.GetComponent<TilePosition>();
+        return Stores.TryFindNearest(world, unit.GetComponent<Owner>().Player, pos.X, pos.Y, out store, good);
+    }
+
+    // Walks to where the order's good is kept and takes up to `amount` of it (at most a full load).
     private static Progress Fetch(World world, Entity unit, int amount)
     {
         ref var order = ref unit.GetComponent<Order>();
-        var pos = unit.GetComponent<TilePosition>();
-        if (!Stores.TryFindNearest(world, unit.GetComponent<Owner>().Player, pos.X, pos.Y, out var store, order.Good))
+        if (!TryFindSupply(world, unit, order.Good, out var store))
             return Progress.Failed;
         var result = ApproachEntity(world, unit, store, reach: 1);
         if (result != Progress.Arrived) return result;
@@ -141,6 +190,6 @@ public sealed partial class OrderSystem : ISimSystem
     private static void GiveUp(Entity unit, ref Order order, in Citizen citizen)
     {
         Movement.Stop(ref unit.GetComponent<Mover>(), unit.GetComponent<TilePosition>());
-        order = citizen.Carried > 0 ? new Order { Kind = OrderKind.ReturnToCamp } : default;
+        order = citizen.Carried > 0 ? new Order { Kind = OrderKind.ReturnToCamp, Public = order.Public } : default;
     }
 }

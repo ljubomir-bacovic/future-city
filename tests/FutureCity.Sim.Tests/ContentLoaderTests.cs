@@ -34,6 +34,7 @@ public class ContentLoaderTests
             ["goods.json"] = Shipped["goods.json"],
             ["buildings.json"] = Shipped["buildings.json"],
             ["progress.json"] = Shipped["progress.json"],
+            ["economy.json"] = Shipped["economy.json"],
         };
 
     private static ContentException LoadFails(Dictionary<string, string> files) =>

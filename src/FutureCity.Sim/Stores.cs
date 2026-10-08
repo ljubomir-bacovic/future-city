@@ -4,8 +4,10 @@ using FutureCity.Sim.Components;
 namespace FutureCity.Sim;
 
 /// <summary>
-/// A player's stores: the camp and completed storehouses. Until ownership arrives (Phase 3) they are shared:
-/// anyone can eat from or take out of any of them, and workers drop goods at the nearest one.
+/// A player's public stores: the camp and completed storehouses. Until Private property they hold everything and
+/// are shared: anyone eats from or takes out of any of them, and workers drop goods at the nearest one. Afterwards
+/// they are the treasury's: tribute and public work fill them, public works and the hungry draw on them, and
+/// families keep their own goods at home (see <see cref="Households"/>).
 /// </summary>
 public static class Stores
 {
@@ -104,6 +106,22 @@ public static class Stores
             int value = world.Content.Nutrition(good);
             int units = (nutrition - eaten + value - 1) / value;
             eaten += Take(world, player, good, units) * value;
+        }
+        return eaten;
+    }
+
+    /// <summary>Like <see cref="TakeFood"/>, but from one holder's inventory (a family home).</summary>
+    public static int TakeFoodFrom(World world, Entity holder, int nutrition)
+    {
+        var amounts = holder.GetComponent<Inventory>().Amounts;
+        int eaten = 0;
+        foreach (int good in world.Content.FoodGoods)
+        {
+            if (eaten >= nutrition) break;
+            int value = world.Content.Nutrition(good);
+            int units = Math.Min(amounts[good], (nutrition - eaten + value - 1) / value);
+            amounts[good] -= units;
+            eaten += units * value;
         }
         return eaten;
     }

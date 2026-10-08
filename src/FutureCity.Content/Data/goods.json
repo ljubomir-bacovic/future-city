@@ -2,17 +2,22 @@
   // Goods kept in stores and carried by citizens.
   // nutrition: food value per unit in percent of a standard ration (0 = not food). Grain eaten whole is poorly
   // digested; milling and baking roughly double the food a harvest provides, which is why bread chains spread.
-  // targetPerCapita: how much of the good the band wants per person; demand drives automatic job assignment.
+  // targetPerCapita: how much of the good the band (later the treasury) wants per person; drives the chief's jobs.
+  // value: what people first think a unit is worth, in coins (pennies). Only a starting belief: once there is a
+  // market, prices come from supply and demand. Visiting merchants trade around these values ("world prices").
+  // householdTarget: units a household wants to keep per member (food is counted in meals, see economy.json).
+  // cpiWeight: weight in the consumer price index (the basket inflation is measured with).
   "goods": [
-    { "id": "berries", "name": "Berries", "color": "#a8324a", "nutrition": 100, "targetPerCapita": 0 },
-    { "id": "meat",    "name": "Meat",    "color": "#8c3b2f", "nutrition": 100, "targetPerCapita": 0 },
-    { "id": "grain",   "name": "Grain",   "color": "#d9b648", "nutrition": 50,  "targetPerCapita": 8 },
-    { "id": "flour",   "name": "Flour",   "color": "#efe6cf", "nutrition": 0,   "targetPerCapita": 2 },
-    { "id": "bread",   "name": "Bread",   "color": "#c27b3a", "nutrition": 100, "targetPerCapita": 0 },
-    { "id": "wood",    "name": "Wood",    "color": "#8a6236", "nutrition": 0,   "targetPerCapita": 6 },
-    { "id": "stone",   "name": "Stone",   "color": "#9a9a92", "nutrition": 0,   "targetPerCapita": 3 },
-    { "id": "clay",    "name": "Clay",    "color": "#b5683f", "nutrition": 0,   "targetPerCapita": 3 },
-    { "id": "tools",   "name": "Tools",   "color": "#5f6f7a", "nutrition": 0,   "targetPerCapita": 1 }
+    { "id": "berries", "name": "Berries", "color": "#a8324a", "nutrition": 100, "targetPerCapita": 0, "value": 20, "householdTarget": 0, "cpiWeight": 3 },
+    { "id": "meat",    "name": "Meat",    "color": "#8c3b2f", "nutrition": 100, "targetPerCapita": 0, "value": 25, "householdTarget": 0, "cpiWeight": 2 },
+    { "id": "grain",   "name": "Grain",   "color": "#d9b648", "nutrition": 50,  "targetPerCapita": 8, "value": 15, "householdTarget": 0, "cpiWeight": 2 },
+    { "id": "flour",   "name": "Flour",   "color": "#efe6cf", "nutrition": 0,   "targetPerCapita": 2, "value": 30, "householdTarget": 0, "cpiWeight": 0 },
+    { "id": "bread",   "name": "Bread",   "color": "#c27b3a", "nutrition": 100, "targetPerCapita": 0, "value": 40, "householdTarget": 0, "cpiWeight": 4 },
+    { "id": "wood",    "name": "Wood",    "color": "#8a6236", "nutrition": 0,   "targetPerCapita": 6, "value": 10, "householdTarget": 4, "cpiWeight": 2 },
+    { "id": "stone",   "name": "Stone",   "color": "#9a9a92", "nutrition": 0,   "targetPerCapita": 3, "value": 20, "householdTarget": 0, "cpiWeight": 0 },
+    { "id": "clay",    "name": "Clay",    "color": "#b5683f", "nutrition": 0,   "targetPerCapita": 3, "value": 15, "householdTarget": 0, "cpiWeight": 0 },
+    { "id": "tools",   "name": "Tools",   "color": "#5f6f7a", "nutrition": 0,   "targetPerCapita": 1, "value": 250, "householdTarget": 1, "cpiWeight": 1 },
+    { "id": "silver",  "name": "Silver",  "color": "#c8cdd2", "nutrition": 0,   "targetPerCapita": 0, "value": 200, "householdTarget": 0, "cpiWeight": 0 }
   ],
 
   // Workers pick up a tool from a store when one is available. A tool speeds up gathering, building,

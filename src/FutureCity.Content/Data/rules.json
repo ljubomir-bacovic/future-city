@@ -25,11 +25,12 @@
     "ticksPerYear": 480,
     "seasons": [
       // cropGrowthPercent: crop growth speed; plantRegrowPercent: wild plant regrowth speed;
-      // sowing: fields can be sown; cropsRot: ripe crops still in the field are lost.
-      { "id": "spring", "name": "Spring", "cropGrowthPercent": 70,  "plantRegrowPercent": 100, "sowing": true,  "cropsRot": false },
-      { "id": "summer", "name": "Summer", "cropGrowthPercent": 100, "plantRegrowPercent": 150, "sowing": true,  "cropsRot": false },
-      { "id": "autumn", "name": "Autumn", "cropGrowthPercent": 40,  "plantRegrowPercent": 50,  "sowing": false, "cropsRot": false },
-      { "id": "winter", "name": "Winter", "cropGrowthPercent": 0,   "plantRegrowPercent": 0,   "sowing": false, "cropsRot": true }
+      // sowing: fields can be sown; cropsRot: ripe crops still in the field are lost;
+      // firewoodPerMember: wood each household burns per member at the start of the season (once households exist).
+      { "id": "spring", "name": "Spring", "cropGrowthPercent": 70,  "plantRegrowPercent": 100, "sowing": true,  "cropsRot": false, "firewoodPerMember": 1 },
+      { "id": "summer", "name": "Summer", "cropGrowthPercent": 100, "plantRegrowPercent": 150, "sowing": true,  "cropsRot": false, "firewoodPerMember": 0 },
+      { "id": "autumn", "name": "Autumn", "cropGrowthPercent": 40,  "plantRegrowPercent": 50,  "sowing": false, "cropsRot": false, "firewoodPerMember": 1 },
+      { "id": "winter", "name": "Winter", "cropGrowthPercent": 0,   "plantRegrowPercent": 0,   "sowing": false, "cropsRot": true, "firewoodPerMember": 2 }
     ]
   }
 }

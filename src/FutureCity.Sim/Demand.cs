@@ -4,8 +4,8 @@ using FutureCity.Sim.Emergence;
 namespace FutureCity.Sim;
 
 /// <summary>
-/// How short a civilization is of each good: the stock it wants per person minus what its stores hold, plus building
-/// materials that sites still wait for. Food goods share one demand, counted in meals. Drives automatic jobs.
+/// How short the public stores are of each good: the stock wanted per person minus what the stores hold, plus building
+/// materials that sites still wait for. Food goods share one demand, counted in meals. Drives the chief's jobs.
 /// </summary>
 public sealed class Demand
 {
@@ -36,9 +36,12 @@ public sealed class Demand
     {
         var content = world.Content;
         var facts = Civics.FactsOf(world, player);
-        var store = facts.Store;
+        var store = Stores.Totals(world, player); // public stores: the shared stores, later the treasury's
         int population = facts.Population;
-        int food = Math.Max(0, content.Citizens.Jobs.FoodTargetPerCapita * population - facts.Food);
+        int foodTarget = Economy.HasHouseholds(world, player)
+            ? content.Economy.Treasury.FoodTargetPerCapita
+            : content.Citizens.Jobs.FoodTargetPerCapita;
+        int food = Math.Max(0, foodTarget * population - Stores.MealsIn(world, store));
 
         var sitesNeed = new int[content.Goods.Count];
         foreach (var site in world.Store.Query<Construction, Building, Owner>().Entities)

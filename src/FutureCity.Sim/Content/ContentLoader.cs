@@ -20,6 +20,8 @@ public static partial class ContentLoader
     internal const string GoodsFile = "goods.json";
     internal const string BuildingsFile = "buildings.json";
     internal const string ProgressFile = "progress.json";
+    internal const string EconomyFile = "economy.json";
+    internal const string SilverGood = "silver";
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -45,6 +47,7 @@ public static partial class ContentLoader
         var goods = Parse<GoodsFile>(byPath, GoodsFile, errors);
         var buildings = Parse<BuildingsFile>(byPath, BuildingsFile, errors);
         var progress = Parse<ProgressRules>(byPath, ProgressFile, errors);
+        var economy = Parse<EconomyRules>(byPath, EconomyFile, errors);
 
         if (goods != null)
             ValidateGoods(goods, errors);
@@ -59,13 +62,16 @@ public static partial class ContentLoader
             ValidateBuildings(buildings, goodIds, errors);
         if (progress != null)
             ValidateProgress(progress, errors);
+        if (economy != null)
+            ValidateEconomy(economy, goodIds, errors);
         if (goods != null && buildings != null && progress != null)
             ValidateConditions(goods, buildings, progress, errors);
 
         if (errors.Count > 0)
             throw new ContentException(errors);
 
-        var parts = new ContentParts(rules!, terrainFile!.Terrains, citizens!, nature!, goods!, buildings!.Buildings, progress!);
+        var parts = new ContentParts(rules!, terrainFile!.Terrains, citizens!, nature!, goods!, buildings!.Buildings, progress!,
+            economy!);
         return new ContentDatabase(parts, ComputeHash(byPath));
     }
 
@@ -159,6 +165,7 @@ public static partial class ContentLoader
         {
             CheckRange(RulesFile, $"season '{s.Id}' cropGrowthPercent", s.CropGrowthPercent, 0, 1000, errors);
             CheckRange(RulesFile, $"season '{s.Id}' plantRegrowPercent", s.PlantRegrowPercent, 0, 1000, errors);
+            CheckRange(RulesFile, $"season '{s.Id}' firewoodPerMember", s.FirewoodPerMember, 0, 1000, errors);
         }
     }
 
@@ -171,9 +178,16 @@ public static partial class ContentLoader
             CheckColor(f, $"good '{g.Id}'", g.Color, errors);
             CheckRange(f, $"good '{g.Id}' nutrition", g.Nutrition, 0, 1000, errors);
             CheckRange(f, $"good '{g.Id}' targetPerCapita", g.TargetPerCapita, 0, 10_000, errors);
+            CheckRange(f, $"good '{g.Id}' value", g.Value, 1, 1_000_000, errors);
+            CheckRange(f, $"good '{g.Id}' householdTarget", g.HouseholdTarget, 0, 10_000, errors);
+            CheckRange(f, $"good '{g.Id}' cpiWeight", g.CpiWeight, 0, 1000, errors);
         }
         if (goods.Goods.All(g => g.Nutrition == 0))
             errors.Add($"{f}: at least one good must be food (nutrition above 0).");
+        if (goods.Goods.All(g => g.CpiWeight == 0))
+            errors.Add($"{f}: at least one good needs a cpiWeight above 0.");
+        if (goods.Goods.All(g => g.Id != SilverGood))
+            errors.Add($"{f}: a good with id '{SilverGood}' is required (the mint strikes coins from it).");
         CheckGood(f, "tools", goods.Tools.Good, goods.Goods.Select(g => g.Id).ToHashSet(), errors);
         CheckRange(f, "tools.durability", goods.Tools.Durability, 1, 1_000_000, errors);
         CheckRange(f, "tools.speedBonusPercent", goods.Tools.SpeedBonusPercent, 0, 1000, errors);
@@ -284,11 +298,19 @@ public static partial class ContentLoader
             CheckRange(f, n + " shelter", b.Shelter, 0, 1000, errors);
             CheckRange(f, n + " workers", b.Workers, 0, 20, errors);
             CheckRange(f, n + " research", b.Research, 0, 1000, errors);
-            int jobs = (b.Recipe != null ? 1 : 0) + (b.Field != null ? 1 : 0) + (b.Research > 0 ? 1 : 0);
+            int jobs = (b.Recipe != null ? 1 : 0) + (b.Field != null ? 1 : 0) + (b.Research > 0 ? 1 : 0)
+                       + (b.Market ? 1 : 0) + (b.Mint != null ? 1 : 0);
             if (jobs > 1)
-                errors.Add($"{f}: {n} can have only one of recipe, field and research.");
+                errors.Add($"{f}: {n} can have only one of recipe, field, research, market and mint.");
             if (jobs == 1 && b.Workers == 0)
-                errors.Add($"{f}: {n} needs workers for its recipe, field or research.");
+                errors.Add($"{f}: {n} needs workers for its recipe, field, research, market or mint.");
+            if (jobs == 0 && b.Workers > 0)
+                errors.Add($"{f}: {n} has workers but no work for them (recipe, field, research, market or mint).");
+            if (b.Mint is { } mint)
+            {
+                CheckRange(f, n + " mint silver", mint.Silver, 1, 1000, errors);
+                CheckRange(f, n + " mint workTicks", mint.WorkTicks, 1, 100_000, errors);
+            }
             if (b.Recipe is { } r)
             {
                 CheckAmounts(f, n + " recipe inputs", r.Inputs, goods, errors);
@@ -331,6 +353,60 @@ public static partial class ContentLoader
             CheckRange(f, $"institution '{i.Id}' foodCost", i.FoodCost, 0, 1_000_000, errors);
         if (p.Eras.Count == 0)
             errors.Add($"{f}: at least one era is required.");
+    }
+
+    private static void ValidateEconomy(EconomyRules e, HashSet<string> goods, List<string> errors)
+    {
+        const string f = EconomyFile;
+        CheckRange(f, "households.foodTargetPerMember", e.Households.FoodTargetPerMember, 0, 10_000, errors);
+        CheckRange(f, "households.surplusPercent", e.Households.SurplusPercent, 100, 10_000, errors);
+        CheckRange(f, "households.inputBatches", e.Households.InputBatches, 0, 100, errors);
+        CheckGood(f, "households.firewood", e.Households.Firewood, goods, errors);
+        CheckRange(f, "treasury.foodTargetPerCapita", e.Treasury.FoodTargetPerCapita, 0, 10_000, errors);
+        CheckRange(f, "treasury.silverTarget", e.Treasury.SilverTarget, 0, 100_000, errors);
+        foreach (var (name, tax) in new[] { ("tribute", e.Taxes.Tribute), ("marketTax", e.Taxes.MarketTax), ("tariff", e.Taxes.Tariff) })
+        {
+            CheckRange(f, $"taxes.{name}.max", tax.Max, 0, 100, errors);
+            CheckRange(f, $"taxes.{name}.default", tax.Default, 0, tax.Max, errors);
+        }
+        var m = e.Market;
+        CheckRange(f, "market.intervalTicks", m.IntervalTicks, 1, 100_000, errors);
+        CheckRange(f, "market.historyLength", m.HistoryLength, 2, 1000, errors);
+        CheckRange(f, "market.beliefStepPercent", m.BeliefStepPercent, 1, 100, errors);
+        CheckRange(f, "market.beliefPullPercent", m.BeliefPullPercent, 1, 100, errors);
+        CheckRange(f, "market.needPremiumPercent", m.NeedPremiumPercent, 0, 1000, errors);
+        CheckRange(f, "market.surplusDiscountPercent", m.SurplusDiscountPercent, 0, 90, errors);
+        CheckRange(f, "market.commissionPercent", m.CommissionPercent, 0, 50, errors);
+        CheckRange(f, "money.coinsPerSilver", e.Money.CoinsPerSilver, 1, 100_000, errors);
+        CheckRange(f, "money.minQuality", e.Money.MinQuality, 1, 100, errors);
+        var w = e.Wages;
+        CheckRange(f, "wages.rationMeals", w.RationMeals, 1, 10_000, errors);
+        CheckRange(f, "wages.reserveChecks", w.ReserveChecks, 1, 10_000, errors);
+        CheckRange(f, "wages.publicPremiumPercent", w.PublicPremiumPercent, 0, 1000, errors);
+        CheckRange(f, "wages.switchMarginPercent", w.SwitchMarginPercent, 0, 1000, errors);
+        CheckRange(f, "wages.switchesPerCheck", w.SwitchesPerCheck, 1, 100, errors);
+        CheckRange(f, "wages.travelPercent", w.TravelPercent, 1, 100, errors);
+        var t = e.Merchants;
+        CheckRange(f, "merchants.visitIntervalTicks", t.VisitIntervalTicks, 1, 1_000_000, errors);
+        CheckRange(f, "merchants.stayTicks", t.StayTicks, 1, 1_000_000, errors);
+        CheckRange(f, "merchants.porters", t.Porters, 1, 20, errors);
+        CheckRange(f, "merchants.coins", t.Coins, 0, 10_000_000, errors);
+        CheckAmounts(f, "merchants.cargo", t.Cargo, goods, errors);
+        CheckAmounts(f, "merchants.wants", t.Wants, goods, errors);
+        CheckRange(f, "merchants.sellMarkupPercent", t.SellMarkupPercent, 0, 1000, errors);
+        CheckRange(f, "merchants.buyDiscountPercent", t.BuyDiscountPercent, 0, 99, errors);
+        CheckRange(f, "guilds.outputBonusPercent", e.Guilds.OutputBonusPercent, 0, 1000, errors);
+        CheckRange(f, "guilds.marginPercent", e.Guilds.MarginPercent, 0, 1000, errors);
+        CheckRange(f, "guilds.newMembersPerYear", e.Guilds.NewMembersPerYear, 0, 100, errors);
+        var h = e.Happiness;
+        CheckRange(f, "happiness.checkIntervalTicks", h.CheckIntervalTicks, 1, 100_000, errors);
+        CheckRange(f, "happiness.step", h.Step, 1, 100, errors);
+        CheckRange(f, "happiness.base", h.Base, 0, 100, errors);
+        CheckRange(f, "happiness.taxPercent", h.TaxPercent, 0, 1000, errors);
+        CheckRange(f, "happiness.productivityAtZero", h.ProductivityAtZero, 1, 1000, errors);
+        CheckRange(f, "happiness.productivityAtHundred", h.ProductivityAtHundred, h.ProductivityAtZero, 1000, errors);
+        CheckRange(f, "happiness.unrestBelow", h.UnrestBelow, 0, 100, errors);
+        CheckRange(f, "classes.nobleWealthPercent", e.Classes.NobleWealthPercent, 100, 100_000, errors);
     }
 
     // Conditions refer to goods, buildings, techs and institutions, so they are checked once all those are known.

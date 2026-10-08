@@ -69,6 +69,8 @@ public sealed partial class OrderSystem
         if (type.Def.Research > 0) UpdateResearch(world, unit, building, type);
         else if (type.Def.Recipe != null) UpdateWorkshop(world, unit, building, type);
         else if (type.Def.Field != null) UpdateFarm(world, unit, building, type);
+        else if (type.Def.Mint != null) UpdateMint(world, unit, building, type);
+        else if (type.Def.Market) UpdateMarketWork(world, unit, building);
     }
 
     private static void UpdateResearch(World world, Entity unit, Entity shrine, BuildingType type)
@@ -128,7 +130,12 @@ public sealed partial class OrderSystem
             var wanted = new int[stock.Length];
             for (int g = 0; g < stock.Length; g++) wanted[g] = Math.Max(0, type.Inputs[g] - stock[g]);
             if (TryFetchFirst(world, unit, ref order, wanted)) return;
-            if (Civics.HasAutoJobs(world, unit.GetComponent<Owner>().Player)) { order = default; return; } // find other work
+            // An organized village sends idle workers elsewhere; a family crafter waits for inputs from the market.
+            if (Civics.HasAutoJobs(world, unit.GetComponent<Owner>().Player) && !Households.TryGetEmployer(world, unit, out _))
+            {
+                order = default;
+                return;
+            }
             ApproachEntity(world, unit, workshop, reach: 1);
             return;
         }
@@ -139,10 +146,20 @@ public sealed partial class OrderSystem
         if (order.Timer < type.Def.Recipe!.WorkTicks * Labor.PerTick) return;
         order.Timer = 0;
         int player = unit.GetComponent<Owner>().Player;
+        // Guild methods: a share more output per batch, paid out in whole units as it adds up.
+        ref var credit = ref workshop.GetComponent<Building>().Credit;
+        int bonus = Economy.HasGuilds(world, player) ? world.Content.Economy.Guilds.OutputBonusPercent : 0;
         for (int g = 0; g < stock.Length; g++)
         {
-            stock[g] += type.Outputs[g] - type.Inputs[g];
-            if (type.Outputs[g] > 0) Civics.RecordProduced(world, player, g, type.Outputs[g]);
+            int made = type.Outputs[g];
+            if (made > 0 && bonus > 0)
+            {
+                credit += made * bonus;
+                made += credit / 100;
+                credit %= 100;
+            }
+            stock[g] += made - type.Inputs[g];
+            if (made > 0) Civics.RecordProduced(world, player, g, made);
         }
     }
 
@@ -252,14 +269,12 @@ public sealed partial class OrderSystem
         }
     }
 
-    // Starts fetching the first wanted good that some reachable store holds.
+    // Starts fetching the first wanted good that the worker can get (from home, or from a reachable public store).
     private static bool TryFetchFirst(World world, Entity unit, ref Order order, int[] wanted)
     {
-        var pos = unit.GetComponent<TilePosition>();
-        int player = unit.GetComponent<Owner>().Player;
         for (int g = 0; g < wanted.Length; g++)
         {
-            if (wanted[g] <= 0 || !Stores.TryFindNearest(world, player, pos.X, pos.Y, out _, g)) continue;
+            if (wanted[g] <= 0 || !TryFindSupply(world, unit, g, out _)) continue;
             order.Good = g;
             order.Stage = OrderStage.Fetch;
             return true;

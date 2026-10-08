@@ -23,6 +23,12 @@ public enum SimEventKind
     InstitutionEstablished,
     /// <summary>A civilization entered a new era (<see cref="SimEvent.Detail"/> = era index).</summary>
     EraReached,
+    /// <summary>A merchant caravan arrived at a player's marketplace (<see cref="SimEvent.Entity"/> = the caravan).</summary>
+    MerchantsArrived,
+    /// <summary>A merchant caravan left a player's marketplace.</summary>
+    MerchantsLeft,
+    /// <summary>A civilization's people fell into unrest (average happiness too low).</summary>
+    Unrest,
 }
 
 /// <summary>

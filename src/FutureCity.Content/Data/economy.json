@@ -1,0 +1,89 @@
+{
+  // The economy after Private property: families own goods, trade at the marketplace, later with coins.
+  // Prices are never set here. Goods' "value" (goods.json) is only what people first believe things are worth;
+  // every market day each trader adjusts its beliefs to what it could and could not buy or sell.
+
+  "households": {
+    "foodTargetPerMember": 20,  // meals a family wants to keep per member
+    "surplusPercent": 150,      // a family offers for sale what it holds beyond target x this
+    "inputBatches": 2,          // a crafter's family keeps inputs for this many batches
+    "firewood": "wood"          // what families burn each season (amounts per season in rules.json)
+  },
+
+  // The chief's treasury: public stores (camp, storehouses) and coins. Before coins, public workers are fed from
+  // the public stores; after, they are paid wages.
+  "treasury": {
+    "foodTargetPerCapita": 10,  // meals per person the treasury keeps as a reserve
+    "silverTarget": 10          // silver the treasury buys for the mint once coinage exists
+  },
+
+  // Rates the player sets, in percent.
+  "taxes": {
+    "tribute":   { "default": 10, "max": 50 },  // share of what families bring home, delivered in goods
+    "marketTax": { "default": 5,  "max": 50 },  // share of every sale at the marketplace, in coins
+    "tariff":    { "default": 10, "max": 100 }  // share of every trade with foreign merchants, in coins
+  },
+
+  "market": {
+    "intervalTicks": 50,        // one market day every 5 s
+    "historyLength": 64,        // market days of price history kept for charts
+    "beliefStepPercent": 5,     // a buyer who got nothing raises its belief by this; a seller who sold nothing lowers it
+    "beliefPullPercent": 25,    // a trader who traded moves its belief this far toward the price paid
+    "needPremiumPercent": 30,   // a trader short of a good bids up to this much above its belief
+    "surplusDiscountPercent": 20, // a trader with a large surplus asks up to this much below its belief
+    "commissionPercent": 2      // share of each sale paid to the market traders working that day
+  },
+
+  "money": {
+    "coinsPerSilver": 200,      // coins struck from one silver at full quality
+    "minQuality": 25            // lowest silver content in percent the player can set; at 50 one silver makes twice the coins
+  },
+
+  "wages": {
+    "rationMeals": 10,          // before coins, public workers the treasury can feed = public meals / this
+    "reserveChecks": 5,         // after coins, public workers the treasury can pay for this many job checks
+    "publicPremiumPercent": 10, // public wage = typical income from private work + this
+    "switchMarginPercent": 25,  // people change jobs only for this much more income
+    "switchesPerCheck": 2,      // most people who change jobs per family per check (keeps the labour market calm)
+    "travelPercent": 60         // share of a gatherer's day spent working rather than walking (income estimates)
+  },
+
+  // Foreign merchants visit once the marketplace stands. They sell what they bring and buy what they want around
+  // world prices (the goods' values, in silver terms: debased coins are worth less to them).
+  "merchants": {
+    "visitIntervalTicks": 480,  // a caravan a year
+    "stayTicks": 300,
+    "porters": 2,               // people in a caravan (they carry nothing for the settlement, they only show it)
+    "coins": 3000,
+    "cargo": { "silver": 15, "tools": 6 },
+    "wants": { "grain": 80, "bread": 40, "wood": 60, "clay": 30 },
+    "sellMarkupPercent": 30,    // they sell no cheaper than world price + this
+    "buyDiscountPercent": 30    // and buy no dearer than world price - this
+  },
+
+  "guilds": {
+    "outputBonusPercent": 25,   // better methods and less waste: more output per batch
+    "marginPercent": 20,        // members never sell below the cost of their inputs + this
+    "newMembersPerYear": 1      // per craft: entry into a guilded craft is limited
+  },
+
+  // Happiness (0-100) moves toward a target from needs met, taxes, safety and health.
+  "happiness": {
+    "checkIntervalTicks": 50,
+    "step": 2,                  // points it moves per check
+    "base": 50,
+    "fed": 15, "hungry": -25,
+    "home": 10, "homeless": -10,
+    "cold": -10,                // the family ran out of firewood
+    "taxPercent": 50,           // penalty = (tribute + market tax) x this / 100
+    "sick": -10,                // health below half
+    "deathPenalty": -5, "maxDeathPenalty": -20, // per starvation death last year
+    "poor": -10, "rich": 10,    // family wealth below a third of average / nobility
+    "productivityAtZero": 80, "productivityAtHundred": 120, // work speed in percent; 50 happiness is normal speed
+    "unrestBelow": 30           // average happiness below this causes unrest
+  },
+
+  "classes": {
+    "nobleWealthPercent": 300   // a family with this share of the average wealth or more is noble
+  }
+}

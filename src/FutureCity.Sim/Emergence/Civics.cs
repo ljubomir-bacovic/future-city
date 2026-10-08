@@ -28,7 +28,7 @@ public static class Civics
     public static Facts FactsOf(World world, int player)
     {
         var census = Bands.CensusOf(world, player);
-        var store = Stores.Totals(world, player);
+        var store = Economy.Holdings(world, player);
         var content = world.Content;
         bool has = TryGet(world, player, out var entity);
         var civ = has ? entity.GetComponent<Civilization>() : default;
@@ -46,6 +46,10 @@ public static class Civics
             Buildings = Buildings.CountCompleted(world, player),
             Techs = civ.Techs ?? new int[content.Techs.Count],
             Institutions = civ.Institutions ?? new int[content.Institutions.Count],
+            Coins = Economy.MoneySupply(world, player),
+            Trades = civ.Trades,
+            Happiness = Society.AverageHappiness(world, player),
+            Classes = Society.Count(world, player),
         };
     }
 
@@ -115,5 +119,12 @@ public static class Civics
         Produced = new int[content.Goods.Count],
         Work = new int[Enum.GetValues<WorkKind>().Length],
         LastWork = new int[Enum.GetValues<WorkKind>().Length],
+        CoinQuality = 100,
+        TributePercent = content.Economy.Taxes.Tribute.Default,
+        MarketTaxPercent = content.Economy.Taxes.MarketTax.Default,
+        TariffPercent = content.Economy.Taxes.Tariff.Default,
+        Ledger = new int[Enum.GetValues<LedgerEntry>().Length],
+        LastLedger = new int[Enum.GetValues<LedgerEntry>().Length],
+        GuildCap = new int[content.Buildings.Count],
     };
 }

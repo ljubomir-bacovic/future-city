@@ -4,7 +4,10 @@
   //
   // Conditions are integer expressions over facts about the player:
   //   population, adults, children, food (meals in store), shelter, era
-  //   store.<good>, gathered.<good>, produced.<good>, building.<id> (completed), tech.<id>, institution.<id> (0 or 1)
+  //   store.<good> (held by the treasury and households), gathered.<good>, produced.<good>,
+  //   building.<id> (completed), tech.<id>, institution.<id> (0 or 1)
+  //   coins (money in circulation), trades (exchanges made so far), happiness (average, 0-100),
+  //   class.<id> (adults in a social class: peasants, craftsmen, merchants, clergy, nobility)
   // Operators: || && ! < <= > >= == != + - * / and parentheses.
   "evaluationIntervalTicks": 50,
 
@@ -31,6 +34,8 @@
   ],
 
   // Institutions become available when their preconditions hold; the player then decides to establish them.
+  // effects: households (families own goods; the chief takes tribute), money (trade in coins, wages, taxes),
+  // guilds (crafts regulated: see economy.json).
   "institutions": [
     {
       "id": "chiefdom", "name": "Chiefdom",
@@ -38,6 +43,27 @@
       "foodCost": 120,             // meals spent on the feast that confirms the chief
       "autoJobs": true,            // the chief organizes labour: idle people take up work where it is needed
       "codex": "In small bands everyone decides together. As a settled village grows, someone is needed to settle disputes, organize shared work and manage the surplus. A chief gains standing by giving feasts and sharing food, and in return directs labour where it is needed. The village becomes more organized, but power and wealth begin to concentrate."
+    },
+    {
+      "id": "property", "name": "Private property",
+      "preconditions": "era >= 1 && building.hut >= 5 && building.farm >= 2",
+      "foodCost": 60,              // a feast to mark out the families' plots
+      "effects": { "households": true },
+      "codex": "When farming families settle on their own plots and build their own houses, the harvest no longer goes into one shared pile. Families keep what they grow and make, store it at home and pass it on to their children. People work harder when they keep the reward, and families start to trade what they have too much of. Some grow richer than others. The chief still takes a share as tribute to pay for common works."
+    },
+    {
+      "id": "coinage", "name": "Coinage",
+      "preconditions": "building.marketplace >= 1 && trades >= 20 && store.silver >= 10",
+      "foodCost": 0,
+      "effects": { "money": true },
+      "codex": "Barter only works when each side has what the other wants, which is often not the case. As trade grows, people settle on a common measure of value. Silver suits it well: it is rare, lasts and is easy to divide. When a ruler stamps silver into coins of a known weight, anyone can accept them without weighing. Money makes trade, wages and taxes far easier. But a ruler who mixes cheaper metal into the coins can pay more today, while every coin buys less tomorrow."
+    },
+    {
+      "id": "guilds", "name": "Guilds",
+      "preconditions": "institution.coinage && building.toolmaker + building.mill + building.bakery >= 3 && class.craftsmen >= 3",
+      "foodCost": 0,
+      "effects": { "guilds": true },
+      "codex": "Craftsmen in a growing town band together in guilds. A guild trains apprentices, sets standards of quality and protects its members' income by limiting who may practise the craft and how cheaply they may sell. Customers get better goods, but with fewer competitors they pay higher prices."
     }
   ],
 

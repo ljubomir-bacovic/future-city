@@ -18,7 +18,15 @@ public sealed class Facts
     public int Shelter { get; init; }
     /// <summary>Index of the current era.</summary>
     public int Era { get; init; }
-    /// <summary>Units in the stores, by good.</summary>
+    /// <summary>Coins held by the treasury and households (the money supply).</summary>
+    public int Coins { get; init; }
+    /// <summary>Exchanges made at the marketplace so far.</summary>
+    public int Trades { get; init; }
+    /// <summary>Average happiness of the people (0-100).</summary>
+    public int Happiness { get; init; }
+    /// <summary>Adults in each social class (see <see cref="Society"/>).</summary>
+    public required int[] Classes { get; init; }
+    /// <summary>Units held by the treasury and households, by good.</summary>
     public required int[] Store { get; init; }
     /// <summary>Units gathered from nature so far, by good.</summary>
     public required int[] Gathered { get; init; }
@@ -40,6 +48,10 @@ public sealed class Facts
         FactKind.Food => Food,
         FactKind.Shelter => Shelter,
         FactKind.Era => Era,
+        FactKind.Coins => Coins,
+        FactKind.Trades => Trades,
+        FactKind.Happiness => Happiness,
+        FactKind.Class => Classes[fact.Index],
         FactKind.Store => Store[fact.Index],
         FactKind.Gathered => Gathered[fact.Index],
         FactKind.Produced => Produced[fact.Index],

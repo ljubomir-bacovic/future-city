@@ -153,7 +153,7 @@ internal static class UnitOrders
         && building.GetComponent<Owner>().Player == player;
 
     /// <summary>Gives a unit an order without a target.</summary>
-    public static void Assign(Entity unit, OrderKind kind) => unit.GetComponent<Order>() = new Order { Kind = kind };
+    public static void Assign(Entity unit, OrderKind kind) => unit.GetComponent<Order>() = new Order { Kind = kind, Public = true };
 
     /// <summary>Gives a unit an order on a target entity. Travel starts on the next order update.</summary>
     public static void Assign(Entity unit, OrderKind kind, Entity target, TargetType type, int targetKind)
@@ -161,7 +161,7 @@ internal static class UnitOrders
         var pos = target.GetComponent<TilePosition>();
         unit.GetComponent<Order>() = new Order
         {
-            Kind = kind, Target = target.Id, TargetType = type, TargetKind = targetKind, TargetX = pos.X, TargetY = pos.Y,
+            Kind = kind, Target = target.Id, TargetType = type, TargetKind = targetKind, TargetX = pos.X, TargetY = pos.Y, Public = true,
         };
     }
 
@@ -169,7 +169,7 @@ internal static class UnitOrders
     public static void AssignTile(Entity unit, int x, int y, int terrain) =>
         unit.GetComponent<Order>() = new Order
         {
-            Kind = OrderKind.Gather, TargetType = TargetType.Tile, TargetKind = terrain, TargetX = x, TargetY = y,
+            Kind = OrderKind.Gather, TargetType = TargetType.Tile, TargetKind = terrain, TargetX = x, TargetY = y, Public = true,
         };
 
     /// <summary>The <paramref name="count"/> walkable tiles nearest (x, y), ring by ring in scan order.</summary>

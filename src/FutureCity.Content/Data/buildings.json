@@ -50,6 +50,18 @@
       "cost": { "wood": 15, "clay": 20, "stone": 10 }, "buildWork": 120, "requires": "tech.farming",
       "workers": 1,
       "recipe": { "inputs": { "flour": 10, "wood": 1 }, "outputs": { "bread": 10 }, "workTicks": 20 }
+    },
+    {
+      "id": "marketplace", "name": "Marketplace", "color": "#c49a5a", "size": 2,
+      "cost": { "wood": 30, "stone": 10 }, "buildWork": 120, "requires": "institution.property",
+      "workers": 2,                // market traders: they keep the market running and earn a commission on trade
+      "market": true               // households, the treasury and visiting merchants trade here
+    },
+    {
+      "id": "mint", "name": "Mint", "color": "#8d8f96", "size": 1,
+      "cost": { "wood": 20, "stone": 30 }, "buildWork": 150, "requires": "institution.coinage",
+      "workers": 1,
+      "mint": { "silver": 1, "workTicks": 30 } // strikes coins for the treasury from 1 silver per batch
     }
   ]
 }

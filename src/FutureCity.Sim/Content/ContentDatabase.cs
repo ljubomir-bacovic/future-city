@@ -32,6 +32,10 @@ public sealed class BuildingType
     public Condition Requires { get; }
     /// <summary>Whether people can be assigned to work here.</summary>
     public bool IsWorkplace => Def.Workers > 0;
+    /// <summary>Whether it is a workshop (it has a recipe).</summary>
+    public bool IsWorkshop => Def.Recipe != null;
+    /// <summary>Whether its workers work for the treasury rather than for their families (shrines and mints).</summary>
+    public bool IsPublicWorkplace => Def.Research > 0 || Def.Mint != null;
 }
 
 /// <summary>A technology with its condition parsed and activity weights indexed by <see cref="WorkKind"/>.</summary>
@@ -109,6 +113,7 @@ public sealed class ContentDatabase
     private readonly SourceInfo[] _deposits;
     private readonly SourceInfo?[] _terrainResource;
     private readonly int[] _depletedTerrain;
+    private readonly int[] _gatherTicks;
 
     internal ContentDatabase(ContentParts parts, string hash)
     {
@@ -121,6 +126,7 @@ public sealed class ContentDatabase
         Goods = parts.Goods.Goods;
         Tools = parts.Goods.Tools;
         Progress = parts.Progress;
+        Economy = parts.Economy;
         Hash = hash;
 
         _terrainIndex = Index(Terrains, t => t.Id);
@@ -133,6 +139,19 @@ public sealed class ContentDatabase
             .ToArray();
         _depletedTerrain = Terrains.Select(t => t.Resource is { } r ? TerrainIndex(r.DepletedTerrain) : -1).ToArray();
         ToolGood = GoodIndex(Tools.Good);
+        SilverGood = GoodIndex(ContentLoader.SilverGood);
+        FirewoodGood = GoodIndex(Economy.Households.Firewood);
+        _gatherTicks = new int[Goods.Count];
+        void Source(int good, int ticks)
+        {
+            if (_gatherTicks[good] == 0 || ticks < _gatherTicks[good]) _gatherTicks[good] = ticks;
+        }
+        for (int i = 0; i < Plants.Count; i++) Source(_plantGood[i], Plants[i].TicksPerFood);
+        for (int i = 0; i < Animals.Count; i++) Source(_animalGood[i], Animals[i].ButcherTicksPerFood * 2); // the chase too
+        foreach (var d in _deposits) Source(d.Good, d.TicksPerUnit);
+        foreach (var t in _terrainResource) if (t is { } r) Source(r.Good, r.TicksPerUnit);
+        MerchantCargo = GoodArray(Economy.Merchants.Cargo);
+        MerchantWants = GoodArray(Economy.Merchants.Wants);
         FoodGoods = Enumerable.Range(0, Goods.Count)
             .Where(g => Goods[g].Nutrition > 0)
             .OrderByDescending(g => Goods[g].Nutrition).ThenBy(g => g)
@@ -190,6 +209,21 @@ public sealed class ContentDatabase
 
     /// <summary>Index of the tool good.</summary>
     public int ToolGood { get; }
+
+    /// <summary>Index of silver, the coin metal.</summary>
+    public int SilverGood { get; }
+
+    /// <summary>Index of the good families burn for warmth.</summary>
+    public int FirewoodGood { get; }
+
+    /// <summary>Economy rules.</summary>
+    public EconomyRules Economy { get; }
+
+    /// <summary>Goods a merchant caravan brings, by good.</summary>
+    public IReadOnlyList<int> MerchantCargo { get; }
+
+    /// <summary>Most of each good a merchant caravan buys, by good.</summary>
+    public IReadOnlyList<int> MerchantWants { get; }
 
     /// <summary>Building types in file order. Building components store the index.</summary>
     public IReadOnlyList<BuildingType> Buildings { get; }
@@ -254,6 +288,12 @@ public sealed class ContentDatabase
     /// <summary>The terrain a tile becomes when its resource runs out, or -1.</summary>
     public int DepletedTerrain(int terrain) => _depletedTerrain[terrain];
 
+    /// <summary>
+    /// Ticks of work per unit at the quickest kind of source in nature for a good (plants, game, deposits, terrain),
+    /// or 0 if it is not found in nature.
+    /// </summary>
+    public int GatherTicksPerUnit(int good) => _gatherTicks[good];
+
     /// <summary>Food value of one unit of a good, in percent of a meal.</summary>
     public int Nutrition(int good) => Goods[good].Nutrition;
 
@@ -276,6 +316,9 @@ public sealed class ContentDatabase
             case "food": return new FactRef(FactKind.Food, 0);
             case "shelter": return new FactRef(FactKind.Shelter, 0);
             case "era": return new FactRef(FactKind.Era, 0);
+            case "coins": return new FactRef(FactKind.Coins, 0);
+            case "trades": return new FactRef(FactKind.Trades, 0);
+            case "happiness": return new FactRef(FactKind.Happiness, 0);
         }
         int dot = name.IndexOf('.');
         if (dot < 0) return null;
@@ -288,6 +331,7 @@ public sealed class ContentDatabase
             "building" => (FactKind.Building, buildings.GetValueOrDefault(id, -1)),
             "tech" => (FactKind.Tech, techs.GetValueOrDefault(id, -1)),
             "institution" => (FactKind.Institution, institutions.GetValueOrDefault(id, -1)),
+            "class" => (FactKind.Class, Array.IndexOf(Society.ClassIds, id)),
             _ => (FactKind.Population, -1),
         };
         return index < 0 ? null : new FactRef(kind, index);
@@ -302,6 +346,10 @@ public sealed class ContentDatabase
         FactKind.Food => "Meals in store",
         FactKind.Shelter => "Shelter",
         FactKind.Era => "Era",
+        FactKind.Coins => "Coins in circulation",
+        FactKind.Trades => "Trades made",
+        FactKind.Happiness => "Average happiness",
+        FactKind.Class => Society.ClassNames[fact.Index],
         FactKind.Store => $"{Goods[fact.Index].Name} in store",
         FactKind.Gathered => $"{Goods[fact.Index].Name} gathered",
         FactKind.Produced => $"{Goods[fact.Index].Name} produced",
@@ -353,4 +401,5 @@ internal sealed record ContentParts(
     NatureFile Nature,
     GoodsFile Goods,
     IReadOnlyList<BuildingDef> Buildings,
-    ProgressRules Progress);
+    ProgressRules Progress,
+    EconomyRules Economy);
