@@ -134,7 +134,8 @@ public sealed partial class OrderSystem
         }
     }
 
-    // Sow in the sowing seasons, wait while the crop grows, harvest when ripe and carry the grain to a store.
+    // Sow in the sowing seasons, wait while the crop grows, and harvest when ripe. The harvest is stacked at the
+    // field (safe from rot) and hauled to a store whenever there is no field work to do.
     private static void UpdateFarm(World world, Entity unit, Entity farm, BuildingType type)
     {
         ref var order = ref unit.GetComponent<Order>();
@@ -144,13 +145,24 @@ public sealed partial class OrderSystem
         int capacity = world.Content.Citizens.CarryCapacity;
         int player = unit.GetComponent<Owner>().Player;
 
-        bool harvesting = field.Stage == FieldStage.Ripe;
-        if (citizen.Carried > 0 && (!harvesting || citizen.Carried >= capacity || citizen.CarriedGood != type.FieldGood))
+        if (citizen.Carried > 0)
         {
             order.Stage = OrderStage.Deliver;
             return;
         }
+        bool harvesting = field.Stage == FieldStage.Ripe;
         bool sowing = field.Stage == FieldStage.Fallow && Calendar.Season(world).Sowing;
+        var stacked = farm.GetComponent<Inventory>().Amounts;
+        if (!sowing && !harvesting && stacked[type.FieldGood] > 0)
+        {
+            if (ApproachEntity(world, unit, farm, reach: 1) != Progress.Arrived) return;
+            int take = Math.Min(capacity, stacked[type.FieldGood]);
+            stacked[type.FieldGood] -= take;
+            citizen.CarriedGood = type.FieldGood;
+            citizen.Carried = take;
+            order.Stage = OrderStage.Deliver;
+            return;
+        }
         if (!sowing && !harvesting)
         {
             // Nothing to do on the field this season: an organized village sends people elsewhere meanwhile.
@@ -172,12 +184,11 @@ public sealed partial class OrderSystem
 
         order.Timer += Labor.Work(world, unit, WorkKind.Farm);
         int perUnit = def.HarvestTicksPerUnit * Labor.PerTick;
-        while (order.Timer >= perUnit && field.Remaining > 0 && citizen.Carried < capacity)
+        while (order.Timer >= perUnit && field.Remaining > 0)
         {
             order.Timer -= perUnit;
             field.Remaining--;
-            citizen.CarriedGood = type.FieldGood;
-            citizen.Carried++;
+            stacked[type.FieldGood]++;
             Civics.RecordProduced(world, player, type.FieldGood, 1);
         }
         if (field.Remaining == 0)
@@ -186,8 +197,6 @@ public sealed partial class OrderSystem
             field.Progress = 0;
             field.Fertility = Math.Max(0, field.Fertility - def.FertilityPerHarvest);
         }
-        if (citizen.Carried >= capacity || field.Stage != FieldStage.Ripe)
-            order.Stage = OrderStage.Deliver;
     }
 
     // Shared stages of building and work orders: taking goods to a store, fetching from one, supplying the building.

@@ -22,15 +22,15 @@
     {
       "id": "farm", "name": "Farm field", "color": "#9c7a3c", "size": 3,
       "cost": { "wood": 10 }, "buildWork": 60, "requires": "tech.farming",
-      "workers": 2,
+      "workers": 3,
       "field": {
         "good": "grain",
-        "sowWork": 60,             // ticks of work to sow the field
-        "growTicks": 900,          // ticks of full-speed growth to ripen (seasons and soil slow it down)
-        "yield": 90,               // grain from a ripe field on perfect soil
-        "harvestTicksPerUnit": 2,
-        "fertilityPerHarvest": 12, // soil exhaustion per harvest, in fertility points
-        "fertilityRecoveryIntervalTicks": 40 // a fallow field regains 1 point this often, up to its natural fertility
+        "sowWork": 40,             // ticks of work to sow the field
+        "growTicks": 150,          // ticks of full-speed growth to ripen (seasons and soil slow it down): sown in spring, ripe by autumn
+        "yield": 300,              // grain from a ripe field on perfect soil (feeds about a dozen people a year as bread)
+        "harvestTicksPerUnit": 1,
+        "fertilityPerHarvest": 8,  // soil exhaustion per harvest, in fertility points
+        "fertilityRecoveryIntervalTicks": 30 // a fallow field regains 1 point this often, up to its natural fertility
       }
     },
     {
@@ -43,13 +43,13 @@
       "id": "mill", "name": "Mill", "color": "#c9b48a", "size": 1,
       "cost": { "wood": 20, "stone": 20 }, "buildWork": 120, "requires": "tech.farming",
       "workers": 1,
-      "recipe": { "inputs": { "grain": 4 }, "outputs": { "flour": 4 }, "workTicks": 30 }
+      "recipe": { "inputs": { "grain": 10 }, "outputs": { "flour": 10 }, "workTicks": 20 }
     },
     {
       "id": "bakery", "name": "Bakery", "color": "#b5683f", "size": 1,
       "cost": { "wood": 15, "clay": 20, "stone": 10 }, "buildWork": 120, "requires": "tech.farming",
       "workers": 1,
-      "recipe": { "inputs": { "flour": 4, "wood": 1 }, "outputs": { "bread": 4 }, "workTicks": 30 }
+      "recipe": { "inputs": { "flour": 10, "wood": 1 }, "outputs": { "bread": 10 }, "workTicks": 20 }
     }
   ]
 }

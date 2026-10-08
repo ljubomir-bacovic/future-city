@@ -119,7 +119,8 @@ public sealed class JobAssignmentSystem : ISimSystem
         if (type.Def.Field != null)
         {
             var field = building.GetComponent<Field>();
-            bool work = field.Stage == FieldStage.Ripe || (field.Stage == FieldStage.Fallow && Calendar.Season(world).Sowing);
+            bool work = field.Stage == FieldStage.Ripe || (field.Stage == FieldStage.Fallow && Calendar.Season(world).Sowing)
+                        || building.GetComponent<Inventory>().Amounts[type.FieldGood] > 0;
             // A ripe crop must come in before it rots, whatever the stores hold.
             return !work ? 0 : field.Stage == FieldStage.Ripe ? rules.BuildPriority + demand.ForGood(type.FieldGood)
                 : 1 + demand.ForGood(type.FieldGood) / (1 + working);
