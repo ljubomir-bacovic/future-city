@@ -37,7 +37,10 @@ public sealed class CommandRegistry
             .Register<SetCoinQuality>("setCoinQuality")
             .Register<Recruit>("recruit")
             .Register<Disband>("disband")
-            .Register<SetRallyPoint>("setRallyPoint");
+            .Register<SetRallyPoint>("setRallyPoint")
+            .Register<Attack>("attack")
+            .Register<AttackMove>("attackMove")
+            .Register<DeclareWar>("declareWar");
     }
 
     /// <summary>Registers a command type under a stable name.</summary>

@@ -1,5 +1,6 @@
 using FutureCity.Sim.Components;
 using FutureCity.Sim.Emergence;
+using FutureCity.Sim.Navigation;
 
 namespace FutureCity.Sim.Commands;
 
@@ -50,5 +51,53 @@ public sealed record SetRallyPoint(int X, int Y) : Command
         civ.HasRally = true;
         civ.RallyX = X;
         civ.RallyY = Y;
+    }
+}
+
+/// <summary>
+/// Soldiers chase and fight an enemy unit or building. Only enemies of a civilization at war with the player can be
+/// attacked (and caravans bound for their markets). Siege engines attack only buildings.
+/// </summary>
+/// <param name="Units">Ids of the soldiers.</param>
+/// <param name="Target">Id of the enemy.</param>
+public sealed record Attack(int[] Units, int Target) : Command
+{
+    /// <inheritdoc />
+    public override void Execute(World world)
+    {
+        if (!world.TryGetEntity(Target, out var target) || !Combat.IsEnemy(world, Player, target)) return;
+        bool building = target.HasComponent<Building>();
+        foreach (var unit in UnitOrders.Select(world, Player, Units, Who.Soldiers))
+        {
+            if (!building && Military.TypeOf(world, unit).Role == Content.UnitRole.Siege) continue;
+            unit.GetComponent<Order>() = new Order
+            {
+                Kind = OrderKind.Attack, Target = target.Id, TargetType = building ? TargetType.Building : TargetType.Unit,
+                Public = true,
+            };
+        }
+    }
+}
+
+/// <summary>Soldiers walk to a tile and fight every enemy they meet on the way.</summary>
+/// <param name="Units">Ids of the soldiers.</param>
+/// <param name="X">Target column.</param>
+/// <param name="Y">Target row.</param>
+public sealed record AttackMove(int[] Units, int X, int Y) : Command
+{
+    /// <inheritdoc />
+    public override void Execute(World world)
+    {
+        var units = UnitOrders.Select(world, Player, Units, Who.Soldiers);
+        int x = Math.Clamp(X, 0, world.Map.Width - 1), y = Math.Clamp(Y, 0, world.Map.Height - 1);
+        var spots = UnitOrders.SpreadAround(world, x, y, units.Count);
+        for (int i = 0; i < units.Count; i++)
+        {
+            units[i].GetComponent<Order>() = new Order
+            {
+                Kind = OrderKind.AttackMove, TargetX = spots[i].X, TargetY = spots[i].Y, Public = true,
+            };
+            Movement.SetGoal(world, ref units[i].GetComponent<Mover>(), units[i].GetComponent<TilePosition>(), spots[i].X, spots[i].Y);
+        }
     }
 }

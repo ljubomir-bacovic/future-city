@@ -14,6 +14,7 @@ public static class Spawn
         entity.AddComponent(new Owner { Player = player });
         entity.AddComponent(Civics.NewCivilization(world.Content));
         entity.AddComponent(Traders.NewTrader(world.Content)); // the treasury
+        entity.AddComponent(Relations.NewDiplomacy());
         return entity;
     }
 

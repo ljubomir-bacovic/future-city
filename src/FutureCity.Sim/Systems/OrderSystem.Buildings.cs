@@ -12,9 +12,15 @@ public sealed partial class OrderSystem
     {
         ref var order = ref unit.GetComponent<Order>();
         ref var citizen = ref unit.GetComponent<Citizen>();
-        if (!TryGetOwnBuilding(world, unit, order.Target, out var site) || Buildings.IsComplete(site))
+        if (!TryGetOwnBuilding(world, unit, order.Target, out var site)
+            || (Buildings.IsComplete(site) && site.GetComponent<Building>().Damage == 0))
         {
             GiveUp(unit, ref order, citizen);
+            return;
+        }
+        if (Buildings.IsComplete(site))
+        {
+            Repair(world, unit, site);
             return;
         }
         var missing = Buildings.MissingMaterials(world, site);
@@ -44,9 +50,34 @@ public sealed partial class OrderSystem
             Complete(world, site);
     }
 
+    // A damaged building is mended with work alone: a full repair takes as long as building it did.
+    private static void Repair(World world, Entity unit, Entity building)
+    {
+        if (unit.GetComponent<Citizen>().Carried > 0)
+        {
+            Deliver(world, unit);
+            return;
+        }
+        ref var order = ref unit.GetComponent<Order>();
+        var arrived = ApproachEntity(world, unit, building, reach: 1);
+        if (arrived == Progress.Failed) { GiveUp(unit, ref order, unit.GetComponent<Citizen>()); return; }
+        if (arrived == Progress.Underway) return;
+        order.Stage = OrderStage.Work;
+        var def = Buildings.TypeOf(world, building).Def;
+        int work = Labor.Work(world, unit, WorkKind.Build);
+        ref var b = ref building.GetComponent<Building>();
+        b.Damage = Math.Max(0, b.Damage - Math.Max(1, (int)((long)work * def.HitPoints / (def.BuildWork * Labor.PerTick))));
+        if (b.Damage == 0) order = default;
+    }
+
     private static void Complete(World world, Entity site)
     {
         site.RemoveComponent<Construction>();
+        if (Buildings.TypeOf(world, site).Def is { Wall: true } wall)
+        {
+            var at = site.GetComponent<TilePosition>();
+            world.Map.SetWall(at.X, at.Y, site.GetComponent<Owner>().Player, wall.Gate);
+        }
         Array.Clear(site.GetComponent<Inventory>().Amounts); // the materials are now the building
         var pos = site.GetComponent<TilePosition>();
         world.Emit(SimEventKind.BuildingCompleted, site.GetComponent<Owner>().Player, site.Id, pos.X, pos.Y,

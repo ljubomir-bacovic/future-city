@@ -92,7 +92,7 @@ public sealed record ReturnToCamp(int[] Units) : Command
     }
 }
 
-/// <summary>Bring materials from the stores to one of the player's construction sites and build it.</summary>
+/// <summary>Bring materials from the stores to one of the player's construction sites and build it, or repair a damaged building.</summary>
 /// <param name="Units">Ids of the citizens.</param>
 /// <param name="Target">Id of the construction site.</param>
 public sealed record Build(int[] Units, int Target) : Command
@@ -100,7 +100,9 @@ public sealed record Build(int[] Units, int Target) : Command
     /// <inheritdoc />
     public override void Execute(World world)
     {
-        if (!UnitOrders.TryGetOwnBuilding(world, Player, Target, out var site) || Buildings.IsComplete(site)) return;
+        if (!UnitOrders.TryGetOwnBuilding(world, Player, Target, out var site)
+            || (Buildings.IsComplete(site) && site.GetComponent<Building>().Damage == 0))
+            return;
         foreach (var unit in UnitOrders.Select(world, Player, Units))
             UnitOrders.Assign(unit, OrderKind.Build, site, TargetType.Building, site.GetComponent<Building>().Kind);
     }

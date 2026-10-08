@@ -123,6 +123,29 @@ internal static class GameSupport
 
     public static int Count<T>(Simulation sim) where T : struct, IComponent => sim.World.Store.Query<T>().Count;
 
+    /// <summary>The civilization record of any player, created on demand.</summary>
+    public static Entity CivOf(Simulation sim, int player) =>
+        Emergence.Civics.TryGet(sim.World, player, out var civ) ? civ : Spawn.Civilization(sim.World, player);
+
+    /// <summary>An armed, ready soldier of <paramref name="unit"/> kind standing on (x, y).</summary>
+    public static Entity Soldier(Simulation sim, string unit, int x, int y, int player = Players.Human, Service service = Service.Levy)
+    {
+        CivOf(sim, player);
+        var person = Adult(sim, x, y, player);
+        Military.Enlist(sim.World, person, sim.World.Content.UnitIndex(unit), service);
+        person.GetComponent<Soldier>().Equipped = true;
+        person.GetComponent<Order>() = new Order { Public = true };
+        return person;
+    }
+
+    /// <summary>Puts two players at war.</summary>
+    public static void War(Simulation sim, int a = 1, int b = 2)
+    {
+        CivOf(sim, a);
+        CivOf(sim, b);
+        Relations.DeclareWar(sim.World, a, b);
+    }
+
     /// <summary>A completed hut that is a family home (Private property is not established by this).</summary>
     public static Entity Home(Simulation sim, int x, int y)
     {

@@ -122,6 +122,7 @@ public static class SaveGame
             var world = new World(content, setup, map, rng, root.GetProperty("tick").GetInt64(),
                 root.GetProperty("nextEntityId").GetInt32());
             ReadEntities(world, root.GetProperty("entities"));
+            Buildings.RestoreWalls(world);
 
             var pending = ReadCommands(root.GetProperty("pendingCommands"), config.Commands);
             var log = root.TryGetProperty("commandLog", out var logJson) ? ReadCommands(logJson, config.Commands) : [];
