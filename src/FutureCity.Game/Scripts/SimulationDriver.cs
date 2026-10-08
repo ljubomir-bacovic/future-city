@@ -31,6 +31,9 @@ public partial class SimulationDriver : Node
     /// <summary>Fraction of the way to the next tick (0–1), for interpolating rendered positions.</summary>
     public double Alpha { get; private set; }
 
+    /// <summary>Called before every tick, e.g. to let a computer player queue commands.</summary>
+    public Action<Simulation>? BeforeStep { get; set; }
+
     /// <summary>Raised when a different simulation is started or loaded.</summary>
     public event Action? SimulationChanged;
 
@@ -73,6 +76,7 @@ public partial class SimulationDriver : Node
         int steps = 0;
         while (_accumulator >= TickSeconds && steps < MaxTicksPerFrame)
         {
+            BeforeStep?.Invoke(Simulation);
             Simulation.Step();
             _accumulator -= TickSeconds;
             steps++;

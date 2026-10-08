@@ -41,7 +41,14 @@ public sealed class TileMap
     public int GetTerrain(int x, int y) => _terrain[Index(x, y)];
 
     /// <summary>Sets the terrain index at (x, y).</summary>
-    public void SetTerrain(int x, int y, int terrain) => _terrain[Index(x, y)] = checked((byte)terrain);
+    public void SetTerrain(int x, int y, int terrain)
+    {
+        _terrain[Index(x, y)] = checked((byte)terrain);
+        Version++;
+    }
+
+    /// <summary>Counts terrain changes, so caches derived from the map know when to rebuild. Not saved.</summary>
+    public int Version { get; private set; }
 
     /// <summary>Raw row-major terrain data, for saving and rendering.</summary>
     public ReadOnlySpan<byte> RawTerrain => _terrain;

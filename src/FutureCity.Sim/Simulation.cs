@@ -43,8 +43,9 @@ public sealed class Simulation
     {
         content.MapSize(setup.MapSize); // fail fast on an unknown map size
         var rng = new Pcg32(setup.Seed);
-        var map = MapGenerator.Generate(setup, content, rng);
-        var world = new World(content, setup, map, rng, tick: 0, nextEntityId: 1);
+        var generated = MapGenerator.Generate(setup, content, rng);
+        var world = new World(content, setup, generated.Map, rng, tick: 0, nextEntityId: 1);
+        WorldPopulator.Populate(world, generated.StartX, generated.StartY);
         return new Simulation(world, config ?? SimulationConfig.CreateDefault(), [], [], 0);
     }
 
@@ -80,6 +81,7 @@ public sealed class Simulation
     public void Step()
     {
         long tick = World.Tick + 1;
+        World.EventList.Clear();
 
         var due = _pending.Where(c => c.Tick == tick).ToList();
         if (due.Count > 0)

@@ -1,0 +1,32 @@
+{
+  // Citizens: ageing, needs and the band's starting conditions.
+  // Time scale: early eras pass quickly, so one game year is a few seconds of play.
+  "ticksPerYear": 120,          // 12 s per year at 1x (10 ticks per second)
+  "adultAgeYears": 14,          // children eat but cannot be given orders
+  "oldAgeYears": 50,            // from this age the yearly chance of a natural death rises...
+  "oldAgeDeathPercentPerYear": 4, // ...by this many percentage points per year past oldAgeYears
+
+  "maxHealth": 1000,
+  "healthRegenPerTick": 2,      // while not starving
+  "maxHunger": 1000,            // at this hunger a citizen is starving and loses health
+  "hungerPerTick": 1,
+  "eatAtHunger": 400,           // citizens eat from the shared store when this hungry
+  "foodPerMeal": 10,
+  "hungerPerMeal": 400,
+  "starvationDamagePerTick": 4, // about 25 s from starving to death
+
+  "moveTicksPerTile": 3,        // on open grassland; terrain moveCost and diagonals add to it
+  "carryCapacity": 10,          // food carried back to camp per trip
+
+  "start": { "citizens": 6, "food": 100, "minAgeYears": 16, "maxAgeYears": 30 },
+  "camp": { "shelter": 20 },    // people the camp's lean-tos and fire can shelter
+
+  // A child is born when the band has a food surplus and shelter to spare.
+  "growth": {
+    "checkIntervalTicks": 100,
+    "foodPerCapita": 25,        // store must hold this much per person (plus the birth cost)
+    "birthFoodCost": 40,
+    "birthChancePercent": 35,
+    "populationCap": 100
+  }
+}

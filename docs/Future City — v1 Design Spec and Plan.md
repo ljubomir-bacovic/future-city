@@ -47,15 +47,15 @@ The simulation owns all game state and rules; Godot only draws it and sends play
 
 **Goal:** a band of villagers survives by hunting and gathering.
 
-- [ ] Small map generator: terrain, water, forests, berry bushes, game animals (seeded)
-- [ ] Citizen agents: age, health, hunger, simple needs
-- [ ] Pathfinding: grid A\* for individuals
-- [ ] Orders: move, gather, hunt, return to camp
-- [ ] Food stores, eating, starvation, natural death
-- [ ] Population growth from food surplus and shelter
-- [ ] Renewable resources: animals breed, plants regrow; overhunting depletes them
-- [ ] Godot: unit sprites, box selection, right-click orders, resource top bar
-- [ ] Placeholder art (simple shapes) so gameplay is not blocked by art
+- [x] Small map generator: terrain, water, forests, berry bushes, game animals (seeded)
+- [x] Citizen agents: age, health, hunger, simple needs
+- [x] Pathfinding: grid A\* for individuals
+- [x] Orders: move, gather, hunt, return to camp
+- [x] Food stores, eating, starvation, natural death
+- [x] Population growth from food surplus and shelter
+- [x] Renewable resources: animals breed, plants regrow; overhunting depletes them
+- [x] Godot: unit sprites, box selection, right-click orders, resource top bar
+- [x] Placeholder art (simple shapes) so gameplay is not blocked by art
 
 **Exit:** a 5-minute session where good choices grow the band and poor ones lead to famine.
 

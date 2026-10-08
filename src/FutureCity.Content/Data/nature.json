@@ -1,0 +1,36 @@
+{
+  // Wild food sources. Plants regrow; animals breed toward the local carrying capacity,
+  // so a herd hunted faster than it breeds dies out (overhunting).
+  "plants": [
+    {
+      "id": "berry_bush", "name": "Berry bush", "color": "#a8324a",
+      "maxFood": 120,
+      "ticksPerFood": 4,            // gathering speed
+      "regrowIntervalTicks": 25,    // +regrowAmount every interval while the bush still has berries
+      "regrowAmount": 1,
+      "dormantTicks": 900,          // a stripped bush needs 90 s before it fruits again
+      "clustersPer10kTiles": 25,
+      "minClusterSize": 3, "maxClusterSize": 6,
+      "startClusters": 2            // guaranteed clusters near the starting camp
+    }
+  ],
+  "animals": [
+    {
+      "id": "deer", "name": "Deer", "color": "#8a5a32",
+      "food": 100,                  // meat from one carcass
+      "killTicks": 30,              // time to bring one down once in reach
+      "butcherTicksPerFood": 2,
+      "carcassDecayIntervalTicks": 12, // a carcass loses 1 food this often (spoilage)
+      "moveTicksPerTile": 4,
+      "wanderRadius": 6,
+      "wanderChancePerTick": 2,     // in percent, while standing still
+      "breedIntervalTicks": 300,
+      "breedChancePercent": 30,
+      "localCapacity": 8,           // no births once this many of the kind have homes within capacityRadius
+      "capacityRadius": 8,
+      "herdsPer10kTiles": 10,
+      "minHerdSize": 3, "maxHerdSize": 6,
+      "startHerds": 1               // guaranteed herds within reach of the starting camp
+    }
+  ]
+}
