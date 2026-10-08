@@ -364,6 +364,7 @@ public static partial class ContentLoader
         CheckGood(f, "households.firewood", e.Households.Firewood, goods, errors);
         CheckRange(f, "treasury.foodTargetPerCapita", e.Treasury.FoodTargetPerCapita, 0, 10_000, errors);
         CheckRange(f, "treasury.silverTarget", e.Treasury.SilverTarget, 0, 100_000, errors);
+        CheckRange(f, "treasury.stockPercent", e.Treasury.StockPercent, 0, 1000, errors);
         foreach (var good in e.Treasury.Regalia) CheckGood(f, "treasury.regalia", good, goods, errors);
         foreach (var (name, tax) in new[] { ("tribute", e.Taxes.Tribute), ("marketTax", e.Taxes.MarketTax), ("tariff", e.Taxes.Tariff) })
         {
@@ -385,6 +386,7 @@ public static partial class ContentLoader
         CheckRange(f, "wages.rationMeals", w.RationMeals, 1, 10_000, errors);
         CheckRange(f, "wages.reserveChecks", w.ReserveChecks, 1, 10_000, errors);
         CheckRange(f, "wages.maxPublicPercent", w.MaxPublicPercent, 0, 100, errors);
+        CheckRange(f, "wages.minPublicWorkers", w.MinPublicWorkers, 0, 100, errors);
         CheckRange(f, "wages.publicPremiumPercent", w.PublicPremiumPercent, 0, 1000, errors);
         CheckRange(f, "wages.switchMarginPercent", w.SwitchMarginPercent, 0, 1000, errors);
         CheckRange(f, "wages.switchesPerCheck", w.SwitchesPerCheck, 1, 100, errors);

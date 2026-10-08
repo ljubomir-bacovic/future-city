@@ -140,7 +140,7 @@ public static class Traders
         }
     }
 
-    // A family keeps firewood and tools per member, a crafter's inputs, and meals per member.
+    // A family keeps firewood and tools per member, a crafter's inputs, and meals per member (plus a child's cost).
     private static int HouseholdTargets(World world, Entity home, int[] target, Dictionary<int, List<Entity>>? members)
     {
         var content = world.Content;
@@ -157,7 +157,9 @@ public static class Traders
             var type = Buildings.TypeOf(world, workplace);
             for (int g = 0; g < target.Length; g++) target[g] += type.Inputs[g] * rules.InputBatches;
         }
-        return rules.FoodTargetPerMember * people.Count;
+        // A family with room in its hut also keeps what a child would cost: it is planning to grow.
+        bool room = people.Count < Buildings.TypeOf(world, home).Def.Shelter;
+        return rules.FoodTargetPerMember * people.Count + (room ? content.Citizens.Growth.BirthFoodCost : 0);
     }
 
     // The treasury keeps a food reserve, materials per person and for building sites, and silver for the mint.
@@ -166,7 +168,8 @@ public static class Traders
         var content = world.Content;
         int player = civ.GetComponent<Owner>().Player;
         int population = Bands.CensusOf(world, player).Total;
-        for (int g = 0; g < target.Length; g++) target[g] = content.Goods[g].TargetPerCapita * population;
+        int stock = content.Economy.Treasury.StockPercent;
+        for (int g = 0; g < target.Length; g++) target[g] = content.Goods[g].TargetPerCapita * population * stock / 100;
         foreach (var site in world.Store.Query<Construction, Building, Owner>().Entities)
         {
             if (site.GetComponent<Owner>().Player != player) continue;

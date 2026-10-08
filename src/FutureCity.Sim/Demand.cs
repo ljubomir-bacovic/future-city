@@ -11,9 +11,12 @@ public sealed class Demand
 {
     private readonly int[] _byGood;
 
-    private Demand(int[] byGood, int food, int[] store, Facts facts)
+    private readonly int[] _sitesNeed;
+
+    private Demand(int[] byGood, int food, int[] store, Facts facts, int[] sitesNeed)
     {
         _byGood = byGood;
+        _sitesNeed = sitesNeed;
         Food = food;
         Store = store;
         Facts = facts;
@@ -27,6 +30,9 @@ public sealed class Demand
 
     /// <summary>The facts the demand was computed from.</summary>
     public Facts Facts { get; }
+
+    /// <summary>Units of a good that construction sites still wait for.</summary>
+    public int SitesNeed(int good) => _sitesNeed[good];
 
     /// <summary>Units short of a good (for food goods, the meals short of the food target, if that is larger).</summary>
     public int ForGood(int good) => _byGood[good];
@@ -59,6 +65,6 @@ public sealed class Demand
             byGood[g] = Math.Max(0, wanted - store[g]);
             if (content.Goods[g].Nutrition > 0) byGood[g] = Math.Max(byGood[g], food);
         }
-        return new Demand(byGood, food, store, facts);
+        return new Demand(byGood, food, store, facts, sitesNeed);
     }
 }

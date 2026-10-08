@@ -18,6 +18,8 @@ public sealed record TreasuryRules
 {
     /// <summary>Meals per person the treasury keeps as a reserve.</summary>
     public required int FoodTargetPerCapita { get; init; }
+    /// <summary>Share (percent) of the goods' per-person targets the treasury keeps in stock; it trades the rest.</summary>
+    public required int StockPercent { get; init; }
     /// <summary>Silver the treasury keeps for the mint.</summary>
     public required int SilverTarget { get; init; }
     /// <summary>Goods only public workers may take from nature (ids), such as silver from the crown's mines.</summary>
@@ -83,6 +85,8 @@ public sealed record WageRules
     public required int ReserveChecks { get; init; }
     /// <summary>Most of the adults living in family homes who work for the treasury, in percent.</summary>
     public required int MaxPublicPercent { get; init; }
+    /// <summary>Public workers the chief can always call on, even with nothing to feed or pay them.</summary>
+    public required int MinPublicWorkers { get; init; }
     /// <summary>Public wage = typical private income + this percentage.</summary>
     public required int PublicPremiumPercent { get; init; }
     /// <summary>People change jobs only for this much more income, in percent.</summary>

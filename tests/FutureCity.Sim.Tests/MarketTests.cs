@@ -188,7 +188,7 @@ public class MarketTests
 
         // A family sells it grain, paying the tariff on foreign trade.
         var family = Family(sim, 30, 10);
-        GameSupport.AtMarket(market, family, "grain", 40);
+        GameSupport.AtMarket(market, family, "grain", 200);
         GameSupport.TraderOf(family).Beliefs[GameSupport.Good("grain")] = 5;
         Markets.HoldDay(sim.World, market);
         Assert.True(caravan.GetComponent<Merchant>().Bought[GameSupport.Good("grain")] > 0);

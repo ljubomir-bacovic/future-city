@@ -14,6 +14,7 @@
   // the public stores; after, they are paid wages.
   "treasury": {
     "foodTargetPerCapita": 10,  // meals per person the treasury keeps as a reserve
+    "stockPercent": 50,         // share of the goods' targetPerCapita it keeps in stock (plus what sites need)
     "silverTarget": 20,         // silver the treasury keeps for the mint
     "regalia": ["silver"]       // the crown's right: only public workers mine silver
   },
@@ -46,6 +47,7 @@
     "rationMeals": 10,          // before coins, public workers the treasury can feed = public meals / this
     "reserveChecks": 5,         // after coins, public workers the treasury can pay for this many job checks
     "maxPublicPercent": 30,     // the chief calls on at most this share of the adults living in family homes
+    "minPublicWorkers": 2,      // ...and can always call on this many (labour owed to the chief), fed or not
     "publicPremiumPercent": 10, // public wage = typical income from private work + this
     "switchMarginPercent": 25,  // people change jobs only for this much more income
     "switchesPerCheck": 2,      // most people who change jobs per check (keeps the labour market calm)

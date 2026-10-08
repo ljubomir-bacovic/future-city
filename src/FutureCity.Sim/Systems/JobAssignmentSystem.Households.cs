@@ -96,6 +96,7 @@ public sealed partial class JobAssignmentSystem
         }
         WithdrawPublicGatherers(world, units, demand, gatherers);
 
+        StaffCrownWork(world, ctx, units, demand);
         foreach (var unit in units)
         {
             if (unit.GetComponent<Order>().Kind != OrderKind.Idle) continue;
@@ -109,6 +110,58 @@ public sealed partial class JobAssignmentSystem
         }
         SwitchJobs(world, ctx, units);
     }
+
+    // A mint with silver to strike always gets a worker, whatever the treasury can pay: it makes the coins. The
+    // chief's most pressing work is staffed the same way.
+    private static void StaffCrownWork(World world, HouseholdContext ctx, List<Entity> units, Demand demand)
+    {
+        foreach (var mint in ctx.Buildings)
+        {
+            if (!Buildings.IsComplete(mint) || Buildings.TypeOf(world, mint).Def.Mint == null
+                || ctx.Workers.GetValueOrDefault(mint.Id) > 0
+                || BuildingScore(world, ctx.Player, mint, demand, 0) <= 0)
+                continue;
+            var worker = CrownWorker(world, units);
+            if (worker.IsNull) return;
+            UnitOrders.Assign(worker, OrderKind.Work, mint, TargetType.Building, mint.GetComponent<Building>().Kind);
+            worker.GetComponent<Order>().Auto = true;
+            ctx.Workers[mint.Id] = 1;
+        }
+
+        // Building sites that can make progress get a builder each.
+        foreach (var site in ctx.Buildings)
+        {
+            if (Buildings.IsComplete(site) || ctx.Workers.GetValueOrDefault(site.Id) > 0
+                || BuildingScore(world, ctx.Player, site, demand, 0) <= 0)
+                continue;
+            var builder = CrownWorker(world, units);
+            if (builder.IsNull) return;
+            UnitOrders.Assign(builder, OrderKind.Build, site, TargetType.Building, site.GetComponent<Building>().Kind);
+            builder.GetComponent<Order>().Auto = true;
+            ctx.Workers[site.Id] = 1;
+        }
+
+        // Likewise the crown's mines (one miner while the treasury wants silver), and materials building sites wait
+        // for (one gatherer each while the public stores lack them).
+        var content = world.Content;
+        for (int good = 0; good < content.Goods.Count; good++)
+        {
+            bool crown = content.Regalia[good] && demand.ForGood(good) > 0;
+            bool site = demand.SitesNeed(good) > demand.Store[good];
+            if (!crown && !site) continue;
+            if (units.Any(u => u.GetComponent<Order>().Public && GoodOf(world, u.GetComponent<Order>()) == good)) continue;
+            if (!(ctx.Gatherable[good] ??= TryFindSource(world, good, ctx.Camp, out _, out _))) continue;
+            var worker = CrownWorker(world, units);
+            if (worker.IsNull || !StartGathering(world, worker, good, ctx.Camp)) return;
+            worker.GetComponent<Order>().Public = true;
+        }
+    }
+
+    // Someone to send to the mint or the crown's mines: an idle adult, else a family gatherer between loads.
+    private static Entity CrownWorker(World world, List<Entity> units) =>
+        units.FirstOrDefault(u => u.GetComponent<Order>().Kind == OrderKind.Idle) is { IsNull: false } idle
+            ? idle
+            : PickTraveller(world, units, publicWork: false);
 
     // Someone with a home doing public work (people living at the camp work for the treasury anyway).
     private static bool IsPublicWorker(World world, Entity unit)
@@ -142,7 +195,7 @@ public sealed partial class JobAssignmentSystem
         int capacity = Stores.Meals(world, ctx.Player) / rules.RationMeals
                        + (ctx.Money ? treasury.Coins / Math.Max(1, wage * rules.ReserveChecks) : 0);
         int housed = units.Count(u => Households.TryGetHome(world, u, out _));
-        capacity = Math.Min(capacity, housed * rules.MaxPublicPercent / 100);
+        capacity = Math.Min(Math.Max(capacity, rules.MinPublicWorkers), housed * rules.MaxPublicPercent / 100);
         int working = units.Count(u => IsPublicWorker(world, u));
         for (int k = units.Count - 1; k >= 0 && working > capacity; k--)
         {
@@ -189,8 +242,11 @@ public sealed partial class JobAssignmentSystem
         for (int good = 0; good < world.Content.Goods.Count; good++)
         {
             int score = demand.ForGood(good) / (1 + gatherers[good]);
-            // The crown's mines are worked by public workers only, so the treasury always keeps one going.
+            // The crown's mines are worked by public workers only, so the treasury always keeps one going; and
+            // materials a building site waits for come before stocking up.
             if (world.Content.Regalia[good] && demand.ForGood(good) > 0 && gatherers[good] == 0) score = int.MaxValue / 2;
+            else if (demand.SitesNeed(good) > demand.Store[good] && gatherers[good] == 0)
+                score = Math.Max(score, world.Content.Citizens.Jobs.BuildPriority);
             if (score <= bestScore || !(ctx.Gatherable[good] ??= TryFindSource(world, good, ctx.Camp, out _, out _))) continue;
             bestScore = score;
             bestGood = good;
