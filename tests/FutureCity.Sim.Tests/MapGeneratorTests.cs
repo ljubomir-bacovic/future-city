@@ -1,4 +1,5 @@
 using FutureCity.Sim.Components;
+using FutureCity.Sim.Emergence;
 
 namespace FutureCity.Sim.Tests;
 
@@ -65,5 +66,37 @@ public class MapGeneratorTests
         Assert.True(nearBushes >= bush.StartClusters * bush.MinClusterSize, $"only {nearBushes} bushes near the start");
         Assert.Contains(world.Store.Query<Animal, TilePosition>().Entities,
             e => e.GetComponent<TilePosition>().DistanceTo(start.X, start.Y) <= clear + 16);
+    }
+
+    [Theory]
+    [MemberData(nameof(Maps))]
+    public void Two_civilizations_start_far_apart_each_with_its_own_band_and_food(ulong seed, string size)
+    {
+        var world = GameSupport.NewGame(seed, size, civilizations: 2).World;
+        var rules = world.Content.Citizens;
+        int clear = world.Content.Rules.MapGeneration.StartClearRadius;
+        Assert.True(Bands.TryGetCamp(world, 1, out var first));
+        Assert.True(Bands.TryGetCamp(world, 2, out var second));
+        var a = first.GetComponent<TilePosition>();
+        var b = second.GetComponent<TilePosition>();
+        Assert.True(a.DistanceTo(b.X, b.Y) >= world.Map.Width / 3, $"camps only {a.DistanceTo(b.X, b.Y)} tiles apart");
+        Assert.True(world.CanReach(a.X, a.Y, b.X, b.Y), "the two bands share one land area");
+        foreach (var (player, start) in new[] { (1, a), (2, b) })
+        {
+            Assert.True(Civics.TryGet(world, player, out _));
+            Assert.Equal(rules.Start.Citizens, Bands.CensusOf(world, player).Total);
+            int nearBushes = world.Store.Query<Plant, TilePosition>().Entities
+                .Count(e => e.GetComponent<TilePosition>().DistanceTo(start.X, start.Y) <= clear + 10);
+            Assert.True(nearBushes >= world.Content.Plants[0].StartClusters * world.Content.Plants[0].MinClusterSize);
+            Assert.Contains(world.Store.Query<Deposit, TilePosition>().Entities,
+                e => e.GetComponent<TilePosition>().DistanceTo(start.X, start.Y) <= clear + 14);
+        }
+    }
+
+    [Fact]
+    public void A_game_has_one_to_four_civilizations()
+    {
+        Assert.Throws<ArgumentException>(() => GameSupport.NewGame(1, "small", civilizations: 5));
+        Assert.Throws<ArgumentException>(() => GameSupport.NewGame(1, "small", civilizations: 0));
     }
 }

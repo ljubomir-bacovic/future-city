@@ -3,14 +3,14 @@ using FutureCity.Sim.Components;
 namespace FutureCity.Sim.Map;
 
 /// <summary>
-/// Fills a freshly generated map: the player's civilization, camp and band, berry bushes, game herds and raw
-/// material deposits. Everything is placed only where the band can walk to, with a few sources guaranteed near the start.
+/// Fills a freshly generated map: each player's civilization, camp and band, berry bushes, game herds and raw
+/// material deposits. Everything is placed only where the bands can walk to, with a few sources guaranteed near each start.
 /// </summary>
 internal static class WorldPopulator
 {
     private const int MaxAttempts = 200;
 
-    public static void Populate(World world, int startX, int startY)
+    public static void Populate(World world, IReadOnlyList<(int X, int Y)> starts)
     {
         var map = world.Map;
         var rng = world.Rng;
@@ -20,23 +20,29 @@ internal static class WorldPopulator
         int grass = content.TerrainIndex(content.Rules.DefaultTerrain);
         var occupied = new bool[map.Width * map.Height];
         int clear = content.Rules.MapGeneration.StartClearRadius;
+        var (startX, startY) = starts[0]; // sources spread over the whole map are placed relative to the first start
 
-        Spawn.Civilization(world, Players.Human);
-        var camp = Spawn.Camp(world, Players.Human, startX, startY);
-        // Start goods in id order of the goods list, so the result never depends on dictionary order.
-        for (int good = 0; good < content.Goods.Count; good++)
+        for (int i = 0; i < starts.Count; i++)
         {
-            if (rules.Start.Goods.TryGetValue(content.Goods[good].Id, out int amount))
-                Stores.Put(camp, good, amount);
-        }
-        MarkCamp(occupied, map, startX, startY);
-        for (int i = 0; i < rules.Start.Citizens; i++)
-        {
-            // The first two are adults (parents); the rest of the band may include children.
-            int youngest = i < 2 ? Math.Max(rules.Start.MinAgeYears, rules.AdultAgeYears) : rules.Start.MinAgeYears;
-            int age = rng.NextInt(youngest, rules.Start.MaxAgeYears + 1);
-            int x = startX + rng.NextInt(-1, 2), y = startY + rng.NextInt(-1, 2);
-            Spawn.Citizen(world, Players.Human, x, y, -(long)age * ticksPerYear - rng.NextInt(ticksPerYear));
+            int player = Players.Human + i;
+            var (sx, sy) = starts[i];
+            Spawn.Civilization(world, player);
+            var camp = Spawn.Camp(world, player, sx, sy);
+            // Start goods in id order of the goods list, so the result never depends on dictionary order.
+            for (int good = 0; good < content.Goods.Count; good++)
+            {
+                if (rules.Start.Goods.TryGetValue(content.Goods[good].Id, out int amount))
+                    Stores.Put(camp, good, amount);
+            }
+            MarkCamp(occupied, map, sx, sy);
+            for (int c = 0; c < rules.Start.Citizens; c++)
+            {
+                // The first two are adults (parents); the rest of the band may include children.
+                int youngest = c < 2 ? Math.Max(rules.Start.MinAgeYears, rules.AdultAgeYears) : rules.Start.MinAgeYears;
+                int age = rng.NextInt(youngest, rules.Start.MaxAgeYears + 1);
+                int x = sx + rng.NextInt(-1, 2), y = sy + rng.NextInt(-1, 2);
+                Spawn.Citizen(world, player, x, y, -(long)age * ticksPerYear - rng.NextInt(ticksPerYear));
+            }
         }
 
         int area = map.Width * map.Height;
@@ -44,12 +50,19 @@ internal static class WorldPopulator
         {
             var plant = content.Plants[kind];
             int clusters = area * plant.ClustersPer10kTiles / 10_000;
-            for (int c = 0; c < plant.StartClusters + clusters; c++)
+            foreach (var (sx, sy) in starts)
             {
-                bool nearStart = c < plant.StartClusters;
-                if (!TryPickTile(world, startX, startY, nearStart ? clear + 2 : clear + 3,
-                        nearStart ? clear + 8 : int.MaxValue, _ => true, out int cx, out int cy))
-                    continue;
+                for (int c = 0; c < plant.StartClusters; c++)
+                {
+                    // Guaranteed food grows on open ground, not in the middle of a wood where few bushes would fit.
+                    if (!TryPickTile(world, starts, sx, sy, clear + 2, clear + 8, t => map.GetTerrain(t.X, t.Y) == grass, out int cx, out int cy)) continue;
+                    int size = rng.NextInt(plant.MinClusterSize, plant.MaxClusterSize + 1);
+                    PlaceCluster(world, occupied, grass, sx, sy, cx, cy, size, _ => true, (x, y) => Spawn.Plant(world, kind, x, y));
+                }
+            }
+            for (int c = 0; c < clusters; c++)
+            {
+                if (!TryPickTile(world, starts, startX, startY, clear + 3, int.MaxValue, _ => true, out int cx, out int cy)) continue;
                 int size = rng.NextInt(plant.MinClusterSize, plant.MaxClusterSize + 1);
                 PlaceCluster(world, occupied, grass, startX, startY, cx, cy, size, _ => true, (x, y) => Spawn.Plant(world, kind, x, y));
             }
@@ -60,13 +73,21 @@ internal static class WorldPopulator
             var deposit = content.Deposits[kind];
             Func<(int X, int Y), bool> site = deposit.NearWater ? t => NextToWater(world, t.X, t.Y) : _ => true;
             int clusters = area * deposit.ClustersPer10kTiles / 10_000;
-            for (int c = 0; c < deposit.StartClusters + clusters; c++)
+            foreach (var (sx, sy) in starts)
             {
-                bool nearStart = c < deposit.StartClusters;
-                // A guaranteed deposit that finds no suitable spot nearby is placed wherever one exists.
-                if (!TryPickTile(world, startX, startY, clear + 2, nearStart ? clear + 12 : int.MaxValue, site, out int cx, out int cy)
-                    && !(nearStart && TryPickTile(world, startX, startY, clear + 2, int.MaxValue, site, out cx, out cy)))
-                    continue;
+                for (int c = 0; c < deposit.StartClusters; c++)
+                {
+                    // A guaranteed deposit that finds no suitable spot nearby is placed wherever one exists.
+                    if (!TryPickTile(world, starts, sx, sy, clear + 2, clear + 12, site, out int cx, out int cy)
+                        && !TryPickTile(world, starts, sx, sy, clear + 2, int.MaxValue, site, out cx, out cy))
+                        continue;
+                    int size = rng.NextInt(deposit.MinClusterSize, deposit.MaxClusterSize + 1);
+                    PlaceCluster(world, occupied, grass, sx, sy, cx, cy, size, site, (x, y) => Spawn.Deposit(world, kind, x, y));
+                }
+            }
+            for (int c = 0; c < clusters; c++)
+            {
+                if (!TryPickTile(world, starts, startX, startY, clear + 2, int.MaxValue, site, out int cx, out int cy)) continue;
                 int size = rng.NextInt(deposit.MinClusterSize, deposit.MaxClusterSize + 1);
                 PlaceCluster(world, occupied, grass, startX, startY, cx, cy, size, site, (x, y) => Spawn.Deposit(world, kind, x, y));
             }
@@ -76,22 +97,31 @@ internal static class WorldPopulator
         {
             var animal = content.Animals[kind];
             int herds = area * animal.HerdsPer10kTiles / 10_000;
-            for (int h = 0; h < animal.StartHerds + herds; h++)
+            // Herds keep their distance from people; the guaranteed ones are a short walk away.
+            foreach (var (sx, sy) in starts)
             {
-                bool nearStart = h < animal.StartHerds;
-                // Herds keep their distance from people; the guaranteed ones are a short walk away.
-                if (!TryPickTile(world, startX, startY, nearStart ? clear + 6 : clear + 10,
-                        nearStart ? clear + 14 : int.MaxValue, _ => true, out int hx, out int hy))
-                    continue;
-                int size = rng.NextInt(animal.MinHerdSize, animal.MaxHerdSize + 1);
-                for (int placed = 0, attempt = 0; placed < size && attempt < MaxAttempts; attempt++)
+                for (int h = 0; h < animal.StartHerds; h++)
                 {
-                    int x = hx + rng.NextInt(-2, 3), y = hy + rng.NextInt(-2, 3);
-                    if (!world.CanReach(startX, startY, x, y)) continue;
-                    Spawn.Animal(world, kind, x, y, hx, hy);
-                    placed++;
+                    if (TryPickTile(world, starts, sx, sy, clear + 6, clear + 14, _ => true, out int hx, out int hy))
+                        PlaceHerd(world, kind, sx, sy, hx, hy, rng.NextInt(animal.MinHerdSize, animal.MaxHerdSize + 1));
                 }
             }
+            for (int h = 0; h < herds; h++)
+            {
+                if (TryPickTile(world, starts, startX, startY, clear + 10, int.MaxValue, _ => true, out int hx, out int hy))
+                    PlaceHerd(world, kind, startX, startY, hx, hy, rng.NextInt(animal.MinHerdSize, animal.MaxHerdSize + 1));
+            }
+        }
+    }
+
+    private static void PlaceHerd(World world, int kind, int startX, int startY, int hx, int hy, int size)
+    {
+        for (int placed = 0, attempt = 0; placed < size && attempt < MaxAttempts; attempt++)
+        {
+            int x = hx + world.Rng.NextInt(-2, 3), y = hy + world.Rng.NextInt(-2, 3);
+            if (!world.CanReach(startX, startY, x, y)) continue;
+            Spawn.Animal(world, kind, x, y, hx, hy);
+            placed++;
         }
     }
 
@@ -137,9 +167,10 @@ internal static class WorldPopulator
         return false;
     }
 
-    // A random reachable tile meeting `site` at a Chebyshev distance from the start within [minDistance, maxDistance].
-    private static bool TryPickTile(World world, int startX, int startY, int minDistance, int maxDistance,
-        Func<(int X, int Y), bool> site, out int x, out int y)
+    // A random reachable tile meeting `site` at a Chebyshev distance from (startX, startY) within [minDistance,
+    // maxDistance], and no closer than minDistance to any civilization's start.
+    private static bool TryPickTile(World world, IReadOnlyList<(int X, int Y)> starts, int startX, int startY,
+        int minDistance, int maxDistance, Func<(int X, int Y), bool> site, out int x, out int y)
     {
         var map = world.Map;
         int radius = Math.Min(maxDistance, Math.Max(map.Width, map.Height));
@@ -148,10 +179,20 @@ internal static class WorldPopulator
             x = Math.Clamp(startX + world.Rng.NextInt(-radius, radius + 1), 0, map.Width - 1);
             y = Math.Clamp(startY + world.Rng.NextInt(-radius, radius + 1), 0, map.Height - 1);
             int distance = new TilePosition(startX, startY).DistanceTo(x, y);
-            if (distance >= minDistance && distance <= maxDistance && world.CanReach(startX, startY, x, y) && site((x, y)))
+            if (distance >= minDistance && distance <= maxDistance && world.CanReach(startX, startY, x, y) && site((x, y))
+                && FarFromStarts(starts, x, y, minDistance))
                 return true;
         }
         x = y = 0;
         return false;
+    }
+
+    private static bool FarFromStarts(IReadOnlyList<(int X, int Y)> starts, int x, int y, int minDistance)
+    {
+        foreach (var (sx, sy) in starts)
+        {
+            if (Math.Max(Math.Abs(sx - x), Math.Abs(sy - y)) < minDistance) return false;
+        }
+        return true;
     }
 }

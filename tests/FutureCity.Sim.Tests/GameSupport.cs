@@ -6,8 +6,8 @@ namespace FutureCity.Sim.Tests;
 /// <summary>Helpers for gameplay tests that run the real game rules.</summary>
 internal static class GameSupport
 {
-    public static Simulation NewGame(ulong seed = 42, string mapSize = "small") =>
-        Simulation.NewGame(TestSupport.Content, TestSupport.Setup(seed, mapSize));
+    public static Simulation NewGame(ulong seed = 42, string mapSize = "small", int civilizations = 1) =>
+        Simulation.NewGame(TestSupport.Content, TestSupport.Setup(seed, mapSize, civilizations));
 
     /// <summary>An all-grass map with no entities, running the real systems: tests place exactly what they need.</summary>
     public static Simulation Plain(ulong seed = 1)
