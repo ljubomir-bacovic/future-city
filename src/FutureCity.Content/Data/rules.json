@@ -1,0 +1,10 @@
+{
+  // Global rules for setting up a game. Map sizes are in tiles and are tunable.
+  "mapSizes": [
+    { "id": "small",  "name": "Small",  "width": 64,  "height": 64 },
+    { "id": "medium", "name": "Medium", "width": 96,  "height": 96 },
+    { "id": "large",  "name": "Large",  "width": 128, "height": 128 }
+  ],
+  "defaultMapSize": "small",
+  "defaultTerrain": "grass"
+}

@@ -1,0 +1,40 @@
+{
+  // Set the GODOT environment variable to the Godot .NET editor executable, e.g.
+  // C:\Godot_v4.7.2-stable_mono_win64\Godot_v4.7.2-stable_mono_win64\Godot_v4.7.2-stable_mono_win64.exe
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Play",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${env:GODOT}",
+      "args": ["--path", "${workspaceFolder}/src/FutureCity.Game"],
+      "cwd": "${workspaceFolder}/src/FutureCity.Game",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "Godot editor",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${env:GODOT}",
+      "args": ["--path", "${workspaceFolder}/src/FutureCity.Game", "--editor"],
+      "cwd": "${workspaceFolder}/src/FutureCity.Game",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "Headless run",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/FutureCity.Headless/bin/Debug/net8.0/FutureCity.Headless.dll",
+      "args": ["--seed", "42", "--ticks", "12000"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    }
+  ]
+}

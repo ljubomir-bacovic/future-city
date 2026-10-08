@@ -1,0 +1,16 @@
+# Godot
+.godot/
+/android/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+
+# Tools and OS
+*.tmp
+Thumbs.db
+.DS_Store

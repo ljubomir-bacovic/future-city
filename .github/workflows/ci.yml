@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          dotnet-version: 8.0.x # runtime for the net8.0 projects
+
+      - name: Restore
+        run: dotnet restore FutureCity.sln
+
+      - name: Build
+        run: dotnet build FutureCity.sln --no-restore -c Release
+
+      - name: Test
+        run: dotnet test FutureCity.sln --no-build -c Release --logger "console;verbosity=normal"
+
+      - name: Headless smoke run (3 full-length games)
+        run: dotnet run --project src/FutureCity.Headless --no-build -c Release -- --games 3 --ticks 12000

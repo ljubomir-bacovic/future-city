@@ -1,0 +1,7 @@
+{
+  // Terrain types. Colors are placeholder art until the illustrated tiles arrive (Phase 8).
+  "terrains": [
+    { "id": "grass", "name": "Grassland", "color": "#7fae5b", "walkable": true,  "buildable": true },
+    { "id": "water", "name": "Water",     "color": "#3f7fbf", "walkable": false, "buildable": false }
+  ]
+}

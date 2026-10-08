@@ -1,0 +1,15 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+
+  <!-- Presentation only: rendering, input, UI, audio. All game rules live in FutureCity.Sim. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>FutureCity.Game</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FutureCity.Sim\FutureCity.Sim.csproj" />
+    <ProjectReference Include="..\FutureCity.Content\FutureCity.Content.csproj" />
+  </ItemGroup>
+
+</Project>
