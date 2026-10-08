@@ -34,6 +34,10 @@ public struct Soldier : IComponent
     public long LastCombatTick;
     /// <summary>Pay checks in a row the treasury could not pay (paid soldiers).</summary>
     public int UnpaidChecks;
+    /// <summary>Where the soldier left their post or line of march to fight (column); they do not chase far from it.</summary>
+    public int PostX;
+    /// <summary>Where the soldier left their post or line of march to fight (row).</summary>
+    public int PostY;
 }
 
 /// <summary>Goods spilled on the ground: the ruins of a destroyed building or the cargo of a raided caravan. Has an <see cref="Inventory"/>.</summary>

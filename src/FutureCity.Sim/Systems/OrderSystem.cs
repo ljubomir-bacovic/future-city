@@ -29,7 +29,8 @@ public sealed partial class OrderSystem : ISimSystem
             switch (unit.GetComponent<Order>().Kind)
             {
                 case OrderKind.Move:
-                    if (!unit.GetComponent<Mover>().Moving) unit.GetComponent<Order>() = default;
+                    // Arrived: stand by (soldiers stay public: they are fed and paid by the treasury).
+                    if (!unit.GetComponent<Mover>().Moving) unit.GetComponent<Order>() = new Order { Public = unit.HasComponent<Soldier>() };
                     break;
                 case OrderKind.ReturnToCamp:
                     UpdateReturnToCamp(world, unit);

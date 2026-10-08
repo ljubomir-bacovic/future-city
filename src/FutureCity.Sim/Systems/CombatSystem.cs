@@ -7,14 +7,16 @@ namespace FutureCity.Sim.Systems;
 
 /// <summary>
 /// Fighting. Soldiers with an attack order chase their target and strike it whenever their weapon is ready; soldiers on
-/// an attack-move walk on but fight every enemy they see; idle soldiers fight enemies that come within sight; towers shoot
-/// at enemies in range. Hits take health (people) or hit points (buildings), and shake a soldier's morale; a soldier
+/// an attack-move walk on but fight every enemy they see, buildings too; idle soldiers stand guard and fight enemy
+/// soldiers (and caravans) that come within sight; towers shoot at enemy soldiers in range. Of their own accord soldiers fight soldiers, caravans and buildings, not civilians (only
+/// an explicit order makes them attack one); civilians who see enemy soldiers close by drop their work and run for camp. Hits take health (people) or hit points (buildings), and shake a soldier's morale; a soldier
 /// whose morale breaks flees home for a while. The dead are counted as losses of their civilization, destroyed
 /// buildings leave ruins to loot (see <see cref="Combat"/>). Ruins and spilled cargo disappear after a while.
 /// </summary>
 public sealed class CombatSystem : ISimSystem
 {
-    // Soldiers on their own initiative (not ordered) give up a chase this far beyond their sight.
+    // Soldiers fighting on their own initiative (not ordered) give up a chase once this many times their sight away
+    // from where they left their post or line of march.
     private const int LeashFactor = 2;
 
     // Chasing soldiers re-plan toward a moving target at most this often.
@@ -32,7 +34,11 @@ public sealed class CombatSystem : ISimSystem
             if (dead.Contains(unit.Id)) continue;
             UpdateSoldier(world, unit, war, targets, dead);
         }
-        if (war) UpdateTowers(world, targets, dead);
+        if (war)
+        {
+            UpdateTowers(world, targets, dead);
+            if (world.Tick % world.Content.Military.Combat.TargetIntervalTicks == 0) Panic(world, soldiers, dead);
+        }
         if (world.Tick % 50 == 0) DecayLoot(world);
     }
 
@@ -76,25 +82,29 @@ public sealed class CombatSystem : ISimSystem
         {
             case OrderKind.Attack:
                 if (!IsValidTarget(world, player, order.Target, type, dead, out var target)
-                    || (order.Auto && Buildings.DistanceTo(world, target, pos.X, pos.Y) > type.Def.SightRadius * LeashFactor))
+                    || (order.Auto && (IsFleeing(world, target) || TooFar(soldier, pos, type))))
                 {
-                    Movement.Stop(ref mover, pos);
-                    order = new Order { Public = true };
+                    // Done, or too far from their post: a guard goes back to it.
+                    bool back = order.Auto && pos.DistanceTo(soldier.PostX, soldier.PostY) > 1;
+                    order = new Order { Kind = back ? OrderKind.Move : OrderKind.Idle, Public = true };
+                    if (back) Movement.SetGoal(world, ref mover, pos, soldier.PostX, soldier.PostY);
+                    else Movement.Stop(ref mover, pos);
                     return;
                 }
                 Engage(world, unit, target, targets, dead);
                 return;
             case OrderKind.AttackMove:
-                if (order.Target != 0 && IsValidTarget(world, player, order.Target, type, dead, out var foe)
-                    && Buildings.DistanceTo(world, foe, pos.X, pos.Y) <= type.Def.SightRadius * LeashFactor)
+                if (order.Target != 0 && IsValidTarget(world, player, order.Target, type, dead, out var foe) && !IsFleeing(world, foe)
+                    && !TooFar(soldier, pos, type))
                 {
                     Engage(world, unit, foe, targets, dead);
                     return;
                 }
                 order.Target = 0;
-                if (look && TryAcquire(world, unit, type, type.Def.SightRadius, targets, dead, out foe))
+                if (look && TryAcquire(world, unit, type, type.Def.SightRadius, targets, dead, out foe, buildings: true))
                 {
                     order.Target = foe.Id;
+                    (soldier.PostX, soldier.PostY) = (pos.X, pos.Y);
                     Engage(world, unit, foe, targets, dead);
                     return;
                 }
@@ -109,8 +119,11 @@ public sealed class CombatSystem : ISimSystem
                 }
                 return;
             case OrderKind.Idle:
-                if (look && TryAcquire(world, unit, type, type.Def.SightRadius, targets, dead, out foe))
+                // On guard: soldiers and caravans only, so defenders do not wander off burning the enemy's town.
+                if (look && type.Role != UnitRole.Siege
+                    && TryAcquire(world, unit, type, type.Def.SightRadius, targets, dead, out foe, buildings: false))
                 {
+                    (soldier.PostX, soldier.PostY) = (pos.X, pos.Y);
                     order = new Order
                     {
                         Kind = OrderKind.Attack, Target = foe.Id,
@@ -122,6 +135,13 @@ public sealed class CombatSystem : ISimSystem
         }
     }
 
+    private static bool TooFar(in Soldier soldier, TilePosition pos, UnitType type) =>
+        pos.DistanceTo(soldier.PostX, soldier.PostY) > type.Def.SightRadius * LeashFactor;
+
+    // Soldiers on their own initiative let a fleeing enemy go rather than chase them home (only an order makes them pursue).
+    private static bool IsFleeing(World world, Entity target) =>
+        target.TryGetComponent<Soldier>(out var soldier) && Military.IsRouted(world, soldier);
+
     private static bool IsValidTarget(World world, int player, int id, UnitType type, HashSet<int> dead, out Entity target)
     {
         target = default;
@@ -132,7 +152,7 @@ public sealed class CombatSystem : ISimSystem
     // The nearest enemy within `radius`: people (and caravans) before buildings, except for siege engines, which only
     // attack buildings. Walls are left alone unless they block the way (see Breach). Ties go to the lowest id.
     private static bool TryAcquire(World world, Entity unit, UnitType type, int radius, List<Entity> targets, HashSet<int> dead,
-        out Entity best)
+        out Entity best, bool buildings)
     {
         var pos = unit.GetComponent<TilePosition>();
         int player = unit.GetComponent<Owner>().Player;
@@ -143,10 +163,14 @@ public sealed class CombatSystem : ISimSystem
             if (dead.Contains(candidate.Id)) continue;
             bool building = candidate.HasComponent<Building>();
             if (type.Role == UnitRole.Siege && !building) continue;
+            if (building && !buildings) continue;
+            if (candidate.HasComponent<Citizen>() && !candidate.HasComponent<Soldier>()) continue; // civilians only when ordered
+            if (IsFleeing(world, candidate)) continue;
             if (building && Buildings.TypeOf(world, candidate).Def.Wall) continue; // walls are fought only when in the way
             int distance = Buildings.DistanceTo(world, candidate, pos.X, pos.Y);
             if (distance > radius || !Combat.IsEnemy(world, player, candidate)) continue;
-            int score = (building && type.Role != UnitRole.Siege ? 1000 : 0) + distance;
+            // Soldiers first, then caravans, then buildings (siege engines see only buildings).
+            int score = (building && type.Role != UnitRole.Siege ? 1000 : candidate.HasComponent<Merchant>() ? 500 : 0) + distance;
             if (score >= bestScore) continue;
             bestScore = score;
             best = candidate;
@@ -205,6 +229,8 @@ public sealed class CombatSystem : ISimSystem
         }
         if (best.IsNull) return false;
         unit.GetComponent<Order>().Target = best.Id;
+        ref var soldier = ref unit.GetComponent<Soldier>();
+        (soldier.PostX, soldier.PostY) = (pos.X, pos.Y);
         return true;
     }
 
@@ -260,7 +286,31 @@ public sealed class CombatSystem : ISimSystem
         if (pos.DistanceTo(at.X, at.Y) > 1) Movement.SetGoal(world, ref mover, pos, at.X, at.Y);
     }
 
-    // Towers shoot the nearest enemy person in range.
+    // Civilians within this many tiles of an armed enemy soldier stop work and run for their camp.
+    private const int PanicRadius = 4;
+
+    private static void Panic(World world, List<Entity> soldiers, HashSet<int> dead)
+    {
+        foreach (var civilian in World.InIdOrder(world.Store.Query<Citizen, Order, Owner, TilePosition>()))
+        {
+            if (civilian.HasComponent<Soldier>() || dead.Contains(civilian.Id)) continue;
+            ref var order = ref civilian.GetComponent<Order>();
+            if (order.Kind == OrderKind.ReturnToCamp) continue;
+            int player = civilian.GetComponent<Owner>().Player;
+            var pos = civilian.GetComponent<TilePosition>();
+            foreach (var soldier in soldiers)
+            {
+                if (dead.Contains(soldier.Id) || !soldier.GetComponent<Soldier>().Equipped
+                    || !Relations.AtWar(world, player, soldier.GetComponent<Owner>().Player)
+                    || soldier.GetComponent<TilePosition>().DistanceTo(pos.X, pos.Y) > PanicRadius)
+                    continue;
+                order = new Order { Kind = OrderKind.ReturnToCamp, Public = order.Public };
+                break;
+            }
+        }
+    }
+
+    // Towers shoot the nearest enemy soldier in range.
     private static void UpdateTowers(World world, List<Entity> targets, HashSet<int> dead)
     {
         foreach (var tower in World.InIdOrder(world.Store.Query<Building, Owner, TilePosition>()))
@@ -274,7 +324,7 @@ public sealed class CombatSystem : ISimSystem
             int bestDistance = int.MaxValue;
             foreach (var candidate in targets)
             {
-                if (dead.Contains(candidate.Id) || candidate.HasComponent<Building>()) continue;
+                if (dead.Contains(candidate.Id) || !candidate.HasComponent<Soldier>()) continue;
                 int distance = candidate.GetComponent<TilePosition>().DistanceTo(pos.X, pos.Y);
                 if (distance > defence.Range || distance >= bestDistance || !Combat.IsEnemy(world, player, candidate)) continue;
                 best = candidate;

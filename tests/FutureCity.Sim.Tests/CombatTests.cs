@@ -153,16 +153,34 @@ public class CombatTests
     }
 
     [Fact]
-    public void Towers_shoot_enemies_in_range()
+    public void Towers_shoot_enemy_soldiers_in_range_but_not_civilians()
     {
         var sim = Field();
         var tower = GameSupport.Building(sim, "tower", 30, 30, player: 1);
-        var foe = GameSupport.Adult(sim, 34, 30, player: 2);
-        foe.GetComponent<Order>() = new Order { Kind = OrderKind.Move };
+        var foe = GameSupport.Soldier(sim, "clubman", 34, 30, player: 2);
+        foe.GetComponent<Order>() = new Order { Kind = OrderKind.Move, Public = true }; // stands there
+        var farmer = GameSupport.Adult(sim, 33, 31, player: 2);
+        farmer.GetComponent<Order>() = new Order { Kind = OrderKind.Move };
         GameSupport.War(sim);
         var events = GameSupport.Run(sim, 30);
         Assert.Contains(events, e => e.Kind == SimEventKind.Attacked && e.Entity == tower.Id && e.Detail == foe.Id);
+        Assert.DoesNotContain(events, e => e.Kind == SimEventKind.Attacked && e.Detail == farmer.Id);
         Assert.True(foe.IsNull || foe.GetComponent<Citizen>().Health < 1000);
+    }
+
+    [Fact]
+    public void Soldiers_on_guard_fight_soldiers_but_leave_civilians_and_buildings_alone_unless_ordered()
+    {
+        var sim = Field();
+        var guard = GameSupport.Soldier(sim, "spearman", 30, 30, player: 1);
+        var farmer = GameSupport.Adult(sim, 32, 30, player: 2);
+        farmer.GetComponent<Order>() = new Order { Kind = OrderKind.Move };
+        GameSupport.Building(sim, "hut", 30, 32, player: 2);
+        GameSupport.War(sim);
+        var events = GameSupport.Run(sim, 60);
+        Assert.DoesNotContain(events, e => e.Kind == SimEventKind.Attacked);
+        Assert.Equal(OrderKind.ReturnToCamp, farmer.GetComponent<Order>().Kind); // the farmer runs for camp
+        Assert.Equal(OrderKind.Idle, guard.GetComponent<Order>().Kind);
     }
 
     [Fact]

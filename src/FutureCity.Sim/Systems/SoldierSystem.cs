@@ -38,7 +38,8 @@ public sealed class SoldierSystem : ISimSystem
             if (unit.GetComponent<Citizen>().Hunger >= hungry) morale -= combat.HungryMoraleLoss;
             else if (world.Tick - soldier.LastCombatTick > combat.RoutTicks)
                 morale = Math.Min(Military.BaseMorale(world, soldier.Kind, soldier.Service), morale + combat.MoraleRecoveryPerCheck);
-            soldier.Morale = Math.Clamp(morale, 0, 100);
+            if (morale >= soldier.Morale) soldier.Morale = Math.Min(100, morale);
+            else Combat.LoseMorale(world, unit, soldier.Morale - morale); // hunger and want of pay can break them too
 
             if (soldier.UnpaidChecks >= combat.DesertAfterUnpaidChecks)
             {

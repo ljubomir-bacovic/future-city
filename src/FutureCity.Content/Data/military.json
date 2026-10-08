@@ -57,7 +57,7 @@
 
   "combat": {
     "minDamage": 5,
-    "buildingDamagePercent": 25,  // ordinary soldiers barely hurt buildings; rams are built for it
+    "buildingDamagePercent": 15,  // ordinary soldiers barely hurt buildings (they burn them slowly); rams are built for it
     "targetIntervalTicks": 5,     // idle soldiers and towers look for enemies this often
     "moraleLossPer100Damage": 4,  // morale lost when hit, per 100 damage
     "allyDeathMoraleLoss": 10,    // morale lost when a soldier of the same side dies nearby...
